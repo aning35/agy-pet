@@ -231,8 +231,14 @@ This project is equipped with **GitHub Actions**. You don't need a Mac or a Linu
 ```
 
 ### macOS (.app & .dmg) Local Build
+First, run the script to build the basic `.app` bundle:
 ```bash
 bash build_mac.sh
+```
+To further package it into a styled `.dmg` installer image with background and icon layout, install and use `dmgbuild`:
+```bash
+pip install dmgbuild
+dmgbuild -s settings.py 'AgyPet' AgyPet.dmg
 ```
 
 ---

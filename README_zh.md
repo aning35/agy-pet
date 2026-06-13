@@ -233,8 +233,14 @@ python tests/mock_serial_hardware.py
 ```
 
 ### macOS 本地打包 (.app 与 .dmg)
+首先运行脚本构建基础的 `.app` 文件：
 ```bash
 bash build_mac.sh
+```
+如需进一步打包为包含背景图和图标排列的精美 `.dmg` 镜像，请安装并使用 `dmgbuild`：
+```bash
+pip install dmgbuild
+dmgbuild -s settings.py 'AgyPet' AgyPet.dmg
 ```
 
 ---

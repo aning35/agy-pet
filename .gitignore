@@ -1,0 +1,28 @@
+# Environments
+venv/
+env/
+.env
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+.DS_Store
+.pio
+
+# Logs
+*.log
+
+# User Configuration
+config.json

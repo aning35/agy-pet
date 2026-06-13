@@ -1,0 +1,8 @@
+watchdog
+pyserial
+colorama
+edge-tts
+pygame
+bleak
+Pillow
+pystray

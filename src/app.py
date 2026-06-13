@@ -22,6 +22,11 @@ def get_lock():
         return None
 
 def main():
+    if "--fireworks" in sys.argv:
+        import fireworks_process
+        fireworks_process.main()
+        return
+
     lock_socket = get_lock()
     if not lock_socket:
         print("AgyPet is already running!")

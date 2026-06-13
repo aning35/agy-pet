@@ -140,9 +140,14 @@ class DesktopPetUI:
         self.canvas.bind("<ButtonPress-1>", self.on_click)
         self.canvas.bind("<ButtonRelease-1>", self.stop_move)
         self.canvas.bind("<B1-Motion>", self.do_move)
-        self.canvas.bind("<Button-2>", self.show_context_menu)
-        self.canvas.bind("<Button-3>", self.show_context_menu)
-        self.canvas.bind("<Control-Button-1>", self.show_context_menu)
+        
+        # Bind right-click on both canvas and root to ensure it catches on macOS
+        for widget in (self.canvas, self.root):
+            widget.bind("<Button-2>", self.show_context_menu)
+            widget.bind("<Button-3>", self.show_context_menu)
+            widget.bind("<ButtonPress-2>", self.show_context_menu)
+            widget.bind("<ButtonPress-3>", self.show_context_menu)
+            widget.bind("<Control-Button-1>", self.show_context_menu)
 
         
         # Context menu
@@ -189,8 +194,8 @@ class DesktopPetUI:
         self.canvas.create_arc(x2-2*radius, y1, x2, y1+2*radius, start=0, extent=90, style=tk.PIESLICE, outline="", **kwargs)
         self.canvas.create_arc(x1, y2-2*radius, x1+2*radius, y2, start=180, extent=90, style=tk.PIESLICE, outline="", **kwargs)
         self.canvas.create_arc(x2-2*radius, y2-2*radius, x2, y2, start=270, extent=90, style=tk.PIESLICE, outline="", **kwargs)
-        self.canvas.create_rectangle(x1+radius, y1, x2-radius, y2, outline="", **kwargs)
-        self.canvas.create_rectangle(x1, y1+radius, x2, y2-radius, outline="", **kwargs)
+        self.canvas.create_rectangle(x1+radius-1, y1, x2-radius+1, y2, outline="", **kwargs)
+        self.canvas.create_rectangle(x1, y1+radius-1, x2, y2-radius+1, outline="", **kwargs)
 
     def on_click(self, event):
         item = self.canvas.find_withtag("current")
@@ -215,8 +220,12 @@ class DesktopPetUI:
                             self.is_visible = True
                     elif cmd == "QUIT":
                         self.root.destroy()
+                    elif cmd == "SETTINGS":
+                        self.open_settings()
             except queue.Empty:
                 pass
+            except Exception as e:
+                print(f"Error in poll_queue: {e}")
             self.root.after(100, self.poll_queue)
 
     def open_log_folder(self):
@@ -252,7 +261,22 @@ class DesktopPetUI:
             messagebox.showwarning("Not Found", "No hardware log found yet.\nLog will be created after the first BLE/Serial connection attempt.")
 
     def show_context_menu(self, event):
-        self.menu.tk_popup(event.x_root, event.y_root)
+        import time
+        if not hasattr(self, 'last_menu_time'):
+            self.last_menu_time = 0
+            
+        # Debounce to prevent double-popup
+        if time.time() - self.last_menu_time < 0.3:
+            return "break"
+            
+        self.last_menu_time = time.time()
+        
+        try:
+            self.menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.menu.grab_release()
+            
+        return "break"
 
     def open_settings(self):
         settings_win = tk.Toplevel(self.root)
@@ -484,7 +508,7 @@ class DesktopPetUI:
         link.pack(anchor="center")
         link.bind("<Button-1>", open_github)
 
-        save_btn = ttk.Button(padding_frame, text="Save & Apply", command=save_and_close)
+        save_btn = tk.Button(padding_frame, text="Save & Apply", command=save_and_close, font=("Segoe UI", 11, "bold"), fg="#2E3440", bg="#8FBCBB", relief="raised", cursor="hand2")
         save_btn.pack(pady=(10, 20), fill="x", ipady=4)
 
         # Let tkinter calculate required dimensions
@@ -587,55 +611,29 @@ class DesktopPetUI:
         if not os.path.exists(gif_path): 
             return
             
-        fw_win = tk.Toplevel(self.root)
-        fw_win.overrideredirect(True)
-        fw_win.attributes("-topmost", True)
-        
-        # Transparent background
-        transparent_color = "#000002"
-        try:
-            if sys.platform == "win32":
-                fw_win.attributes("-transparentcolor", transparent_color)
-            elif sys.platform == "darwin":
-                fw_win.attributes("-transparent", True)
-                transparent_color = "systemTransparent"
-        except Exception:
-            pass
-        fw_win.configure(bg=transparent_color)
-        
-        # Center of screen
-        width = 800
-        height = 600
-        sw = fw_win.winfo_screenwidth()
-        sh = fw_win.winfo_screenheight()
-        x = (sw - width) // 2
-        y = (sh - height) // 2
-        fw_win.geometry(f"{width}x{height}+{x}+{y}")
-        
-        # Make it click-through on Windows
-        if os.name == 'nt':
-            try:
-                import ctypes
-                hwnd = ctypes.windll.user32.GetParent(fw_win.winfo_id())
-                ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
-                ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex_style | 0x00080000 | 0x00000020)
-            except Exception as e:
-                print(f"Could not make click-through: {e}")
-                
-        canvas = tk.Canvas(fw_win, bg=transparent_color, highlightthickness=0, bd=0, width=width, height=height)
-        canvas.pack(fill=tk.BOTH, expand=True)
-        image_id = canvas.create_image(width//2, height//2, anchor="center")
-        
-        anim = AnimatedGif(canvas, image_id, gif_path, delay=40)
-        anim.start()
-        
         # Play idle sound for fireworks feeling or default idle sound
         config = load_config()
         voice_profile = config.get("voice_profile", "baba")
         self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "idle.mp3"))
         
-        # Destroy after 2 seconds (time for fireworks to burst and fade)
-        self.root.after(2000, fw_win.destroy)
+        # Spawn independent process for fireworks to bypass macOS Toplevel transparency bugs
+        import subprocess
+        import sys
+        if getattr(sys, 'frozen', False):
+            # If frozen, sys.executable is the app itself
+            subprocess.Popen([sys.executable, "--fireworks"])
+        else:
+            # If not frozen, use python to run app.py
+            app_script = os.path.join(base_dir, "app.py")
+            if not os.path.exists(app_script):
+                app_script = os.path.join(base_dir, "src", "app.py")
+            subprocess.Popen([sys.executable, app_script, "--fireworks"])
+        
+    def _cleanup_fireworks(self):
+        if hasattr(self, 'fw_win') and self.fw_win:
+            self.fw_win.destroy()
+            self.fw_win = None
+            self.fw_anim = None
 
     def update_ui(self):
         try:

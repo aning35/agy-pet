@@ -21,6 +21,8 @@ fi
 pyinstaller --clean --noconfirm --windowed \
     --add-data "assets/sounds:assets/sounds" \
     --add-data "assets/gifs:assets/gifs" \
+    --add-data "assets/tray_icon.png:assets" \
+    --icon="assets/icon.icns" \
     --name AgyPet \
     src/app.py
 

@@ -24,6 +24,12 @@ pyinstaller --clean --noconfirm --windowed \
     --name AgyPet \
     src/app.py
 
+echo "Configuring Info.plist to hide Dock icons (LSUIElement)..."
+plutil -replace LSUIElement -bool true dist/AgyPet.app/Contents/Info.plist || plutil -insert LSUIElement -bool true dist/AgyPet.app/Contents/Info.plist
+
+echo "Re-signing the application bundle..."
+codesign --force --deep --sign - dist/AgyPet.app
+
 echo ""
 echo "=========================================="
 echo "Build complete! The AgyPet.app bundle is located in the dist/ folder."

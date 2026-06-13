@@ -101,7 +101,7 @@ def get_latest_conversation_log(brain_dir):
     dirs = [os.path.join(brain_dir, d) for d in os.listdir(brain_dir) if os.path.isdir(os.path.join(brain_dir, d))]
     valid_logs = []
     for d in dirs:
-        log_file = os.path.join(d, ".system_generated", "logs", "overview.txt")
+        log_file = os.path.join(d, ".system_generated", "logs", "transcript.jsonl")
         if os.path.exists(log_file):
             valid_logs.append(log_file)
             

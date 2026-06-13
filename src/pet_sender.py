@@ -17,7 +17,8 @@ import sys
 
 # Configure dedicated hardware logger (won't pollute bleak/other libs)
 if getattr(sys, 'frozen', False):
-    _log_dir = os.path.dirname(sys.executable)
+    _log_dir = os.path.expanduser("~/.agypet")
+    os.makedirs(_log_dir, exist_ok=True)
 else:
     _log_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

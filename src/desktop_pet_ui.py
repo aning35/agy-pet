@@ -77,9 +77,16 @@ class DesktopPetUI:
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
         
-        # Transparent Background magic for Windows
+        # Transparent Background magic for Windows/macOS
         self.transparent_color = "#000001"
-        self.root.attributes("-transparentcolor", self.transparent_color)
+        try:
+            if sys.platform == "win32":
+                self.root.attributes("-transparentcolor", self.transparent_color)
+            elif sys.platform == "darwin":
+                self.root.attributes("-transparent", True)
+                self.transparent_color = "systemTransparent"
+        except Exception as e:
+            print(f"Transparency not supported: {e}")
         self.root.configure(bg=self.transparent_color)
         
         self.width = 250
@@ -104,7 +111,7 @@ class DesktopPetUI:
         self.fg_color = "#CAD3F5" # Text
         
         # Main Canvas
-        self.canvas = tk.Canvas(self.root, bg=self.transparent_color, highlightthickness=0)
+        self.canvas = tk.Canvas(self.root, bg=self.transparent_color, highlightthickness=0, bd=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
         
         # Draw Rounded Pill
@@ -133,7 +140,10 @@ class DesktopPetUI:
         self.canvas.bind("<ButtonPress-1>", self.on_click)
         self.canvas.bind("<ButtonRelease-1>", self.stop_move)
         self.canvas.bind("<B1-Motion>", self.do_move)
+        self.canvas.bind("<Button-2>", self.show_context_menu)
         self.canvas.bind("<Button-3>", self.show_context_menu)
+        self.canvas.bind("<Control-Button-1>", self.show_context_menu)
+
         
         # Context menu
         self.menu = tk.Menu(self.root, tearoff=0)
@@ -214,20 +224,30 @@ class DesktopPetUI:
         brain_dir = config.get("brain_dir", "")
         log_file = get_latest_conversation_log(brain_dir)
         if log_file and os.path.exists(log_file):
-            subprocess.Popen(['explorer', '/select,', os.path.normpath(log_file)])
+            if sys.platform == 'darwin':
+                subprocess.Popen(['open', '-R', log_file])
+            else:
+                subprocess.Popen(['explorer', '/select,', os.path.normpath(log_file)])
         elif brain_dir and os.path.exists(brain_dir):
-            subprocess.Popen(['explorer', os.path.normpath(brain_dir)])
+            if sys.platform == 'darwin':
+                subprocess.Popen(['open', brain_dir])
+            else:
+                subprocess.Popen(['explorer', os.path.normpath(brain_dir)])
         else:
             messagebox.showwarning("Not Found", "No active log directory found.")
 
     def open_hardware_log(self):
         if getattr(sys, 'frozen', False):
-            log_dir = os.path.dirname(sys.executable)
+            log_dir = os.path.expanduser("~/.agypet")
+            os.makedirs(log_dir, exist_ok=True)
         else:
             log_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         log_file = os.path.join(log_dir, "agypet_hardware.log")
         if os.path.exists(log_file):
-            subprocess.Popen(['notepad.exe', os.path.normpath(log_file)])
+            if sys.platform == 'darwin':
+                subprocess.Popen(['open', log_file])
+            else:
+                subprocess.Popen(['notepad.exe', os.path.normpath(log_file)])
         else:
             messagebox.showwarning("Not Found", "No hardware log found yet.\nLog will be created after the first BLE/Serial connection attempt.")
 
@@ -380,10 +400,14 @@ class DesktopPetUI:
         voice_var = tk.StringVar(master=settings_win, value=config.get("voice_profile", "baba"))
         voice_profiles = {
             "爸爸 (Papa)": "baba",
+            "妈妈 (Mama)": "mama",
             "主人 (Master)": "zhuren",
             "老板 (Boss)": "laoban",
             "哥哥 (Brother)": "gege",
-            "宝宝 (Honey)": "baobao"
+            "宝宝 (Honey)": "baobao",
+            "董事长大人 (Chairman)": "dongshizhang",
+            "国主陛下 (Monarch)": "guozhu",
+            "皇上 (Emperor)": "huangshang"
         }
         voice_reverse = {v: k for k, v in voice_profiles.items()}
         
@@ -460,8 +484,8 @@ class DesktopPetUI:
         link.pack(anchor="center")
         link.bind("<Button-1>", open_github)
 
-        save_btn = tk.Button(padding_frame, text="Save & Apply", command=save_and_close, bg="#5E81AC", fg="white", font=("Segoe UI", 10, "bold"), relief="flat", pady=6, cursor="hand2")
-        save_btn.pack(pady=(10, 20), fill="x")
+        save_btn = ttk.Button(padding_frame, text="Save & Apply", command=save_and_close)
+        save_btn.pack(pady=(10, 20), fill="x", ipady=4)
 
         # Let tkinter calculate required dimensions
         settings_win.update_idletasks()
@@ -536,6 +560,11 @@ class DesktopPetUI:
             self.current_anim.start()
             
             self.current_state = state
+            
+            if state == AntigravityState.THINKING:
+                self.thinking_start_time = time.time()
+            else:
+                self.thinking_start_time = None
 
         # Text and Colors
         state_mapping = {
@@ -564,7 +593,14 @@ class DesktopPetUI:
         
         # Transparent background
         transparent_color = "#000002"
-        fw_win.attributes("-transparentcolor", transparent_color)
+        try:
+            if sys.platform == "win32":
+                fw_win.attributes("-transparentcolor", transparent_color)
+            elif sys.platform == "darwin":
+                fw_win.attributes("-transparent", True)
+                transparent_color = "systemTransparent"
+        except Exception:
+            pass
         fw_win.configure(bg=transparent_color)
         
         # Center of screen
@@ -586,7 +622,7 @@ class DesktopPetUI:
             except Exception as e:
                 print(f"Could not make click-through: {e}")
                 
-        canvas = tk.Canvas(fw_win, bg=transparent_color, highlightthickness=0, width=width, height=height)
+        canvas = tk.Canvas(fw_win, bg=transparent_color, highlightthickness=0, bd=0, width=width, height=height)
         canvas.pack(fill=tk.BOTH, expand=True)
         image_id = canvas.create_image(width//2, height//2, anchor="center")
         
@@ -609,6 +645,13 @@ class DesktopPetUI:
         except queue.Empty:
             pass
         finally:
+            if self.current_state == AntigravityState.THINKING and hasattr(self, 'thinking_start_time') and self.thinking_start_time:
+                if time.time() - self.thinking_start_time >= 120:
+                    base_dir = get_base_dir()
+                    config = load_config()
+                    voice_profile = config.get("voice_profile", "baba")
+                    self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "thinking_long.mp3"))
+                    self.thinking_start_time = time.time()
             self.root.after(100, self.update_ui)
 
     def on_state_change(self, new_state, reason):

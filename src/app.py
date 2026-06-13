@@ -52,9 +52,15 @@ def main():
     
     if tray_process.is_alive():
         tray_process.terminate()
+        tray_process.join(timeout=1)
+        if tray_process.is_alive():
+            tray_process.kill()
         
     if sender:
         sender.close()
+        
+    # Force exit to prevent background threads/processes from hanging
+    os._exit(0)
 
 if __name__ == "__main__":
     multiprocessing.freeze_support()

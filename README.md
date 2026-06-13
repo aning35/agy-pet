@@ -27,6 +27,38 @@ Whenever your AI is "Thinking", "Waiting for Approval", or encountering an "Erro
 
 ---
 
+## 🖼️ Showcase / 视听效果预览
+
+### Voice Profiles (多套专属 AI 语音包)
+AgyPet features multiple built-in voice personalities (Master, Papa, Boss, Brother, Baby). Listen to some samples from the **"Master (主人)"** profile:
+- 🟢 [Idle (空闲待机)](assets/sounds/zhuren/idle.mp3)
+- 🔵 [Thinking (思考中)](assets/sounds/zhuren/thinking.mp3)
+- 🟠 [Waiting (等待审批)](assets/sounds/zhuren/waiting.mp3)
+- 🔴 [Error (执行报错)](assets/sounds/zhuren/error.mp3)
+
+### Desktop Pet UI States (桌面悬浮窗状态)
+<p align="center">
+  <img src="docs/screenshots/agy-pet-idle.png" width="200" />
+  <img src="docs/screenshots/agy-pet-thinking.png" width="200" />
+  <img src="docs/screenshots/agy-pet-waiting.png" width="200" />
+  <img src="docs/screenshots/agy-pet-error.png" width="200" />
+</p>
+
+### Live Core Animations (核心动态引擎素材)
+<p align="center">
+  <img src="assets/gifs/idle.gif" width="150" />
+  <img src="assets/gifs/thinking.gif" width="150" />
+  <img src="assets/gifs/waiting.gif" width="150" />
+  <img src="assets/gifs/error.gif" width="150" />
+</p>
+
+### Task Completion Fireworks (任务完成满屏烟花特效)
+<p align="center">
+  <img src="docs/screenshots/apt-pet-fireworks-ui.png" width="800" />
+</p>
+
+---
+
 ## ✨ Core Features / 核心特性
 
 - 🖥️ **Cross-Platform System Tray**: Perfectly supports Windows and macOS. Utilizes a true multi-processing architecture to bypass macOS main-thread UI restrictions. (真正的多进程系统托盘驻留，完美绕过 Mac 崩溃限制)

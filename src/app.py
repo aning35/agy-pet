@@ -34,7 +34,7 @@ def main():
         from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("AgyPet v0.1.0", "AgyPet is already running in the background!\nCheck your system tray (near the clock).")
+        messagebox.showinfo("AgyPet v0.1.1", "AgyPet is already running in the background!\nCheck your system tray (near the clock).")
         return
 
     config = load_config()

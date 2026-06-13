@@ -39,5 +39,5 @@ def run_tray_process(command_queue):
         pystray.MenuItem("Quit", on_quit)
     )
     
-    icon = pystray.Icon("AgyPet", image, "AgyPet v0.1.0", menu)
+    icon = pystray.Icon("AgyPet", image, "AgyPet v0.1.1", menu)
     icon.run()

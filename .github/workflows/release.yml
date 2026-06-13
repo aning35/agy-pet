@@ -50,6 +50,8 @@ jobs:
             --name AgyPet \
             src/app.py
           plutil -replace LSUIElement -bool true dist/AgyPet.app/Contents/Info.plist || plutil -insert LSUIElement -bool true dist/AgyPet.app/Contents/Info.plist
+          plutil -replace NSBluetoothAlwaysUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist || plutil -insert NSBluetoothAlwaysUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist
+          plutil -replace NSBluetoothPeripheralUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist || plutil -insert NSBluetoothPeripheralUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist
       - name: Create DMG
         run: |
           # Use dmgbuild to create a beautifully styled DMG

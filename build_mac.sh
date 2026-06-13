@@ -26,8 +26,10 @@ pyinstaller --clean --noconfirm --windowed \
     --name AgyPet \
     src/app.py
 
-echo "Configuring Info.plist to hide Dock icons (LSUIElement)..."
+echo "Configuring Info.plist for UI and Permissions..."
 plutil -replace LSUIElement -bool true dist/AgyPet.app/Contents/Info.plist || plutil -insert LSUIElement -bool true dist/AgyPet.app/Contents/Info.plist
+plutil -replace NSBluetoothAlwaysUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist || plutil -insert NSBluetoothAlwaysUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist
+plutil -replace NSBluetoothPeripheralUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist || plutil -insert NSBluetoothPeripheralUsageDescription -string "AgyPet needs Bluetooth access to connect to your smart pet hardware." dist/AgyPet.app/Contents/Info.plist
 
 echo "Re-signing the application bundle..."
 codesign --force --deep --sign - dist/AgyPet.app

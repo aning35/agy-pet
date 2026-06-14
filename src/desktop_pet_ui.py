@@ -304,6 +304,19 @@ class DesktopPetUI:
                         else:
                             self.root.deiconify()
                             self.is_visible = True
+                            
+                            # Recovery: If window is offscreen or lost due to drag bug, reset to center
+                            screen_w = self.root.winfo_screenwidth()
+                            screen_h = self.root.winfo_screenheight()
+                            win_x = self.root.winfo_x()
+                            win_y = self.root.winfo_y()
+                            if (win_x < -self.width or win_x > screen_w) or \
+                               (win_y < -self.height or win_y > screen_h):
+                                new_x = (screen_w - self.width) // 2
+                                new_y = (screen_h - self.height) // 2
+                                self.current_win_x = new_x
+                                self.current_win_y = new_y
+                                self.root.geometry(f"{self.width}x{self.height}+{new_x}+{new_y}")
                     elif cmd == "QUIT":
                         self.root.destroy()
                     elif cmd == "SETTINGS":
@@ -586,7 +599,7 @@ class DesktopPetUI:
         about_frame = ttk.Frame(padding_frame)
         about_frame.pack(fill="x", pady=5)
         ttk.Label(about_frame, text="About AgyPet", font=("Segoe UI", 10, "bold")).pack(anchor="center", pady=(0, 5))
-        ttk.Label(about_frame, text="Version: v0.1.4", font=("Segoe UI", 9)).pack(anchor="center")
+        ttk.Label(about_frame, text="Version: v0.1.2", font=("Segoe UI", 9)).pack(anchor="center")
         ttk.Label(about_frame, text="Author: aning35", font=("Segoe UI", 9)).pack(anchor="center")
         
         def open_github(event):
@@ -618,11 +631,17 @@ class DesktopPetUI:
         else:
             self.drag_offset_x = event.x_root - getattr(self, 'current_win_x', self.root.winfo_x())
             self.drag_offset_y = event.y_root - getattr(self, 'current_win_y', self.root.winfo_y())
+            # Track when we last undocked to prevent immediate re-docking
+            self.last_undock_time = getattr(self, 'last_undock_time', 0)
 
     def stop_move(self, event):
         if self.is_docked:
             self.dock_start_x = None
             self.dock_start_y = None
+            return
+            
+        # Prevent immediate re-docking if we just undocked
+        if time.time() - getattr(self, 'last_undock_time', 0) < 0.5:
             return
             
         # Check for docking using internal tracked coordinates to bypass Tkinter async geometry lag
@@ -658,10 +677,19 @@ class DesktopPetUI:
         x = event.x_root - self.drag_offset_x
         y = event.y_root - self.drag_offset_y
         
-        # Prevent hiding behind the Windows taskbar at the bottom
-        # Leaves at least 30 pixels visible so it can be grabbed again
+        # Prevent hiding completely off-screen left/right/top/bottom
+        screen_w = self.root.winfo_screenwidth()
         screen_h = self.root.winfo_screenheight()
-        if y > screen_h - 30:
+        
+        # Leave at least 30 pixels visible so it can be grabbed again
+        if x < -self.width + 30:
+            x = -self.width + 30
+        elif x > screen_w - 30:
+            x = screen_w - 30
+            
+        if y < 0:
+            y = 0
+        elif y > screen_h - 30:
             y = screen_h - 30
 
         self.current_win_x = x
@@ -723,21 +751,25 @@ class DesktopPetUI:
         screen_w = self.root.winfo_screenwidth()
         screen_h = self.root.winfo_screenheight()
         
-        if new_x < 0:
-            new_x = 0
-        elif new_x > screen_w - self.width:
-            new_x = screen_w - self.width
+        # Ensure new position does not trigger immediate dock again (padding)
+        if new_x <= self.dock_threshold:
+            new_x = self.dock_threshold + 5
+        elif new_x >= screen_w - self.width - self.dock_threshold:
+            new_x = screen_w - self.width - self.dock_threshold - 5
             
-        if new_y < 0:
-            new_y = 0
-        elif new_y > screen_h - self.height:
+        if new_y <= self.dock_threshold:
+            new_y = self.dock_threshold + 5
+            
+        # Prevent off-screen completely
+        if new_y > screen_h - self.height:
             new_y = screen_h - self.height
             
         self.current_win_x = new_x
         self.current_win_y = new_y
         self.drag_offset_x = mouse_x - new_x
         self.drag_offset_y = mouse_y - new_y
-        self.root.geometry(f"{self.width}x{self.height}{new_x:+d}{new_y:+d}")
+        self.last_undock_time = time.time()
+        self.root.geometry(f"{self.width}x{self.height}+{new_x}+{new_y}")
 
     def update_dock_color(self, state):
         if state == AntigravityState.THINKING:

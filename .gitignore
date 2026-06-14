@@ -28,3 +28,4 @@ __pycache__/
 
 # User Configuration
 config.json
+pet_stats.json

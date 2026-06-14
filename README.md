@@ -62,6 +62,9 @@ AgyPet features multiple built-in voice personalities (Master, Papa, Boss, Broth
 
 - 🖥️ **Cross-Platform System Tray**: Perfectly supports Windows and macOS. Utilizes a true multi-processing architecture to bypass macOS main-thread UI restrictions.
 - 🎆 **Smart Context Menu & System Tray**: Right-click the pet to trigger actions (like "Fireworks"), or use the system tray/menu bar icon to toggle visibility, manage settings, and securely run in the background.
+- 📌 **Edge Docking (Windows)**: Drag the pet to any screen edge (left, right, or top) to transform it into a sleek, state-colored progress bar that stays out of your way.
+- 📊 **Local Stats Dashboard**: Right-click and select "Show Dashboard" to view today's AI thinking time, error count, and session uptime — all computed locally, zero AI inference cost.
+- 🛡️ **Deep Error Detection**: Automatically catches fatal agent errors (HTTP 400, network timeouts, `invalid_request_error`) and instantly reflects them in the pet's ERROR state.
 - 🛜 **Hardware Connectivity**: Built-in support for BLE (Bluetooth Low Energy) MAC/Name scanning and legacy USB Serial (SPP).
 - 🎨 **Modern Aesthetics**: Frameless capsule design, Catppuccin color palette, and dynamic GIF engines running on a transparent canvas.
 - ⚙️ **Hot-Swappable Configuration**: Change target Bluetooth devices, serial ports, or Agent log directories on the fly via the built-in GUI without restarting.

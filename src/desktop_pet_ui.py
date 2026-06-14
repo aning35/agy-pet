@@ -97,6 +97,9 @@ class DesktopPetUI:
         y_pos = 60
         self.root.geometry(f"{self.width}x{self.height}+{x_pos}+{y_pos}")
         
+        self.current_win_x = x_pos
+        self.current_win_y = y_pos
+        
         self.state_queue = queue.Queue()
         self.current_state = None
         
@@ -108,6 +111,16 @@ class DesktopPetUI:
         self.bar_thickness = 6
         self.dock_start_x = None
         self.dock_start_y = None
+        
+        # Local Enhancements State
+        self.stats_file = os.path.join(os.path.dirname(__file__), "..", "pet_stats.json")
+        self.stats = {"thinking_time": 0, "errors": 0, "uptime": 0}
+        self.session_start = time.time()
+        self.idle_start_time = time.time()
+        self.last_think_start = None
+        self.load_stats()
+        
+        self.dashboard_window = None
         
         try:
             pygame.mixer.init()
@@ -158,12 +171,18 @@ class DesktopPetUI:
             widget.bind("<ButtonPress-2>", self.show_context_menu)
             widget.bind("<ButtonPress-3>", self.show_context_menu)
             widget.bind("<Control-Button-1>", self.show_context_menu)
+            
+            # Re-assert topmost when mouse hovers or clicks
+            widget.bind("<Enter>", lambda e: self.root.attributes("-topmost", True), add="+")
+            widget.bind("<ButtonPress-1>", lambda e: self.root.attributes("-topmost", True), add="+")
 
         
         # Context menu
         self.menu = tk.Menu(self.root, tearoff=0)
+        self.menu.add_command(label="📊 Show Dashboard", command=self.toggle_dashboard)
+        self.menu.add_separator()
         self.menu.add_command(label="⚙️ Settings", command=self.open_settings)
-        self.menu.add_command(label="📂 Open Brainhole Logs", command=self.open_log_folder)
+        self.menu.add_command(label="📂 Open AI Logs", command=self.open_log_folder)
         self.menu.add_command(label="📂 Open Hardware Log", command=self.open_hardware_log)
         test_hw_menu = tk.Menu(self.menu, tearoff=0)
         test_hw_menu.add_command(label="IDLE (0x01)", command=lambda: self.on_state_change(AntigravityState.IDLE, "Test Hardware"))
@@ -183,6 +202,64 @@ class DesktopPetUI:
         
         if self.sender:
             self.sender.set_status_callback(self.on_connection_status)
+
+    def load_stats(self):
+        if os.path.exists(self.stats_file):
+            try:
+                import json
+                with open(self.stats_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Reset if it's a new day
+                    import datetime
+                    last_date = data.get("date", "")
+                    current_date = datetime.date.today().isoformat()
+                    if last_date == current_date:
+                        self.stats = data
+                    else:
+                        self.stats = {"thinking_time": 0, "errors": 0, "uptime": 0, "date": current_date}
+            except:
+                pass
+        else:
+            import datetime
+            self.stats["date"] = datetime.date.today().isoformat()
+
+    def save_stats(self):
+        try:
+            import json
+            with open(self.stats_file, 'w', encoding='utf-8') as f:
+                json.dump(self.stats, f)
+        except Exception as e:
+            print(f"Error saving stats: {e}")
+
+    def toggle_dashboard(self, event=None):
+        if self.dashboard_window and self.dashboard_window.winfo_exists():
+            self.dashboard_window.destroy()
+            self.dashboard_window = None
+            return
+            
+        x = event.x_root if event else self.root.winfo_pointerx()
+        y = event.y_root if event else self.root.winfo_pointery()
+        
+        self.dashboard_window = tk.Toplevel(self.root)
+        self.dashboard_window.title("AgyPet Stats")
+        self.dashboard_window.geometry(f"200x120+{x+10}+{y+10}")
+        self.dashboard_window.configure(bg="#303446")
+        self.dashboard_window.overrideredirect(True)
+        self.dashboard_window.attributes("-topmost", True)
+        
+        ttk.Label(self.dashboard_window, text="Today's Dashboard", font=("Segoe UI", 10, "bold"), background="#303446", foreground="#A6DA95").pack(pady=5)
+        
+        think_mins = int(self.stats['thinking_time'] // 60)
+        think_secs = int(self.stats['thinking_time'] % 60)
+        ttk.Label(self.dashboard_window, text=f"Brainpower: {think_mins}m {think_secs}s", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        
+        ttk.Label(self.dashboard_window, text=f"Errors Fixed: {self.stats['errors']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        
+        up_mins = int(self.stats['uptime'] // 60)
+        ttk.Label(self.dashboard_window, text=f"Uptime: {up_mins}m", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        
+        # Close on click
+        self.dashboard_window.bind("<Button-1>", lambda e: self.toggle_dashboard(None))
 
     def on_connection_status(self, mode, is_connected, message=""):
         def _update():
@@ -253,22 +330,25 @@ class DesktopPetUI:
             else:
                 subprocess.Popen(['explorer', os.path.normpath(brain_dir)])
         else:
-            messagebox.showwarning("Not Found", "No active log directory found.")
+            messagebox.showwarning("Not Found", "No active log directory found.\nPlease configure it in Settings.", parent=self.root)
 
     def open_hardware_log(self):
-        if getattr(sys, 'frozen', False):
-            log_dir = os.path.expanduser("~/.agypet")
-            os.makedirs(log_dir, exist_ok=True)
-        else:
-            log_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        log_file = os.path.join(log_dir, "agypet_hardware.log")
-        if os.path.exists(log_file):
-            if sys.platform == 'darwin':
-                subprocess.Popen(['open', log_file])
+        try:
+            if getattr(sys, 'frozen', False):
+                log_dir = os.path.expanduser("~/.agypet")
+                os.makedirs(log_dir, exist_ok=True)
             else:
-                subprocess.Popen(['notepad.exe', os.path.normpath(log_file)])
-        else:
-            messagebox.showwarning("Not Found", "No hardware log found yet.\nLog will be created after the first BLE/Serial connection attempt.")
+                log_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            log_file = os.path.join(log_dir, "agypet_hardware.log")
+            if os.path.exists(log_file):
+                if sys.platform == 'darwin':
+                    subprocess.Popen(['open', log_file])
+                else:
+                    os.startfile(os.path.normpath(log_file))
+            else:
+                messagebox.showwarning("Not Found", "No hardware log found yet.\nLog will be created after the first BLE/Serial connection attempt.", parent=self.root)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open log: {e}", parent=self.root)
 
     def show_context_menu(self, event):
         import time
@@ -507,7 +587,7 @@ class DesktopPetUI:
         about_frame = ttk.Frame(padding_frame)
         about_frame.pack(fill="x", pady=5)
         ttk.Label(about_frame, text="About AgyPet", font=("Segoe UI", 10, "bold")).pack(anchor="center", pady=(0, 5))
-        ttk.Label(about_frame, text="Version: v0.1.2", font=("Segoe UI", 9)).pack(anchor="center")
+        ttk.Label(about_frame, text="Version: v0.1.4", font=("Segoe UI", 9)).pack(anchor="center")
         ttk.Label(about_frame, text="Author: aning35", font=("Segoe UI", 9)).pack(anchor="center")
         
         def open_github(event):
@@ -537,10 +617,8 @@ class DesktopPetUI:
             self.dock_start_x = event.x_root
             self.dock_start_y = event.y_root
         else:
-            self.drag_offset_x = event.x_root - self.root.winfo_x()
-            self.drag_offset_y = event.y_root - self.root.winfo_y()
-            self.current_win_x = self.root.winfo_x()
-            self.current_win_y = self.root.winfo_y()
+            self.drag_offset_x = event.x_root - getattr(self, 'current_win_x', self.root.winfo_x())
+            self.drag_offset_y = event.y_root - getattr(self, 'current_win_y', self.root.winfo_y())
 
     def stop_move(self, event):
         if self.is_docked:
@@ -581,22 +659,15 @@ class DesktopPetUI:
         x = event.x_root - self.drag_offset_x
         y = event.y_root - self.drag_offset_y
         
-        screen_w = self.root.winfo_screenwidth()
+        # Prevent hiding behind the Windows taskbar at the bottom
+        # Leaves at least 30 pixels visible so it can be grabbed again
         screen_h = self.root.winfo_screenheight()
-        
-        if x < 0:
-            x = 0
-        elif x > screen_w - self.width:
-            x = screen_w - self.width
-            
-        if y < 0:
-            y = 0
-        elif y > screen_h - self.height:
-            y = screen_h - self.height
+        if y > screen_h - 30:
+            y = screen_h - 30
 
         self.current_win_x = x
         self.current_win_y = y
-        self.root.geometry(f"{self.width}x{self.height}{x:+d}{y:+d}")
+        self.root.geometry(f"{self.width}x{self.height}+{x}+{y}")
 
     def hex_to_rgb(self, hex_color):
         hex_color = hex_color.lstrip('#')
@@ -727,6 +798,20 @@ class DesktopPetUI:
             if not self.is_docked:
                 self.current_anim.start()
             
+            # Stats updates
+            if state == AntigravityState.ERROR and self.current_state != AntigravityState.ERROR:
+                self.stats["errors"] += 1
+                self.save_stats()
+            
+            if self.current_state == AntigravityState.THINKING and self.last_think_start:
+                self.stats["thinking_time"] += (time.time() - self.last_think_start)
+                self.save_stats()
+                
+            if state == AntigravityState.THINKING:
+                self.last_think_start = time.time()
+            else:
+                self.last_think_start = None
+                
             self.current_state = state
             
             if self.is_docked:
@@ -751,6 +836,20 @@ class DesktopPetUI:
         # truncate detail
         short_detail = detail[:22] + "..." if len(detail) > 22 else detail
         self.canvas.itemconfig(self.detail_item, text=short_detail)
+        
+        # Idle Tracker
+        if state == AntigravityState.IDLE:
+            idle_duration = time.time() - self.idle_start_time
+            if idle_duration > 30 and not self.is_docked:
+                # Occasional idle swap text
+                if int(time.time()) % 10 < 3:
+                    self.canvas.itemconfig(self.status_item, text="SLEEPING", fill="#6C7086")
+        else:
+            self.idle_start_time = time.time()
+            
+        # Uptime Tracker
+        now = time.time()
+        self.stats["uptime"] = now - self.session_start
 
     def show_fireworks(self):
         base_dir = get_base_dir()

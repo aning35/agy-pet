@@ -71,9 +71,9 @@ class LogHandler(FileSystemEventHandler):
                 self.callback(AntigravityState.ERROR, "System Error")
                 return
                 
-            if "error: there was a problem" in content.lower() or "retries remaining" in content.lower() or "网络中断" in content or "重试" in content:
+            if "error: there was a problem" in content.lower() or "retries remaining" in content.lower() or "网络中断" in content or "重试" in content or "agent terminated due to error" in content.lower() or "http 400 bad request" in content.lower() or "invalid_request_error" in content.lower() or "\"type\":\"error\"" in content.lower():
                 if source == "SYSTEM" or source == "USER_EXPLICIT":
-                    self.callback(AntigravityState.ERROR, "Network Error")
+                    self.callback(AntigravityState.ERROR, "Fatal Agent Error")
                     return
             
             if source == "USER_EXPLICIT" and msg_type == "USER_INPUT":

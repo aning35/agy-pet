@@ -199,6 +199,11 @@ class DesktopPetUI:
         self.update_ui()
         self.update_appearance(AntigravityState.IDLE, "Startup")
         
+        # Periodic canvas self-heal to prevent DWM transparency rendering loss
+        self._last_canvas_heal = time.time()
+        self._canvas_heal_interval = 30  # seconds
+        self.schedule_canvas_heal()
+        
         if self.sender:
             self.sender.set_status_callback(self.on_connection_status)
 
@@ -708,42 +713,42 @@ class DesktopPetUI:
         self.dock_edge = edge
         self.undocked_geometry = self.root.geometry()
         
-        # Hide pill elements
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        
+        # 1. Update geometry first to let the window resize
+        if edge == "left":
+            self.root.geometry(f"{self.bar_thickness}x{screen_h}+0+0")
+        elif edge == "right":
+            self.root.geometry(f"{self.bar_thickness}x{screen_h}+{screen_w - self.bar_thickness}+0")
+        elif edge == "top":
+            self.root.geometry(f"{screen_w}x{self.bar_thickness}+0+0")
+            
+        # Force geometry configuration to process
+        self.root.update_idletasks()
+        
+        # 2. Hide pill elements
         for item in self.canvas.find_all():
             self.canvas.itemconfigure(item, state="hidden")
             
         if self.current_anim:
             self.current_anim.stop()
             
-        screen_w = self.root.winfo_screenwidth()
-        screen_h = self.root.winfo_screenheight()
-        
+        # 3. Create dock bar on the resized canvas
         if edge == "left":
-            self.root.geometry(f"{self.bar_thickness}x{screen_h}+0+0")
             self.dock_bar = self.canvas.create_rectangle(0, 0, self.bar_thickness, screen_h, fill="#A6DA95", outline="", tag="dock_bar")
         elif edge == "right":
-            self.root.geometry(f"{self.bar_thickness}x{screen_h}+{screen_w - self.bar_thickness}+0")
             self.dock_bar = self.canvas.create_rectangle(0, 0, self.bar_thickness, screen_h, fill="#A6DA95", outline="", tag="dock_bar")
         elif edge == "top":
-            self.root.geometry(f"{screen_w}x{self.bar_thickness}+0+0")
             self.dock_bar = self.canvas.create_rectangle(0, 0, screen_w, self.bar_thickness, fill="#A6DA95", outline="", tag="dock_bar")
             
-            
         self.update_dock_color(self.current_state)
+        self.root.update() # Force DWM repaint
 
     def undock(self, mouse_x, mouse_y):
         self.is_docked = False
         self.dock_edge = None
         
-        self.canvas.delete("dock_bar")
-        
-        # Restore pill elements
-        for item in self.canvas.find_all():
-            self.canvas.itemconfigure(item, state="normal")
-            
-        if self.current_anim:
-            self.current_anim.start()
-            
         # Center the restored window around the mouse pointer
         new_x = mouse_x - self.width // 2
         new_y = mouse_y - self.height // 2
@@ -769,7 +774,66 @@ class DesktopPetUI:
         self.drag_offset_x = mouse_x - new_x
         self.drag_offset_y = mouse_y - new_y
         self.last_undock_time = time.time()
+        
+        # === NUCLEAR REBUILD ===
+        # After prolonged docking (window at 6px height for 10+ minutes), 
+        # Windows DWM discards the rendering surface for the tiny window.
+        # Simply restoring geometry and toggling item states is NOT enough.
+        # We must:
+        # 1. withdraw() + deiconify() to force Windows to recreate the window surface
+        # 2. Delete ALL canvas items and recreate them from scratch
+        # 3. Force a full update_appearance with GIF reload
+        
+        # Step 1: Force window surface recreation
+        self.root.withdraw()
         self.root.geometry(f"{self.width}x{self.height}+{new_x}+{new_y}")
+        self.root.update_idletasks()
+        self.root.deiconify()
+        self.root.attributes("-topmost", True)
+        self.root.update_idletasks()
+        
+        # Step 2: Destroy and rebuild all canvas content
+        self._rebuild_canvas_content()
+        
+        # Step 3: Force full visual rebuild (GIF + text)
+        saved_state = self.current_state or AntigravityState.IDLE
+        self.current_state = None
+        self.update_appearance(saved_state, "Restored from dock", force_silent=True)
+        
+        # Step 4: Final full repaint
+        self.root.update()
+
+    def _rebuild_canvas_content(self):
+        """Delete all canvas items and recreate them from scratch.
+        This is the nuclear option for recovering from DWM rendering surface loss."""
+        # Stop any running animation
+        if self.current_anim:
+            self.current_anim.stop()
+            self.current_anim = None
+        
+        # Delete everything
+        self.canvas.delete("all")
+        
+        # Recreate rounded pill background
+        self.draw_rounded_rect(0, 0, self.width, self.height, radius=16, fill=self.bg_color)
+        
+        # Recreate drag grip
+        grip_color = "#5B6078"
+        for i in range(3):
+            y = 22 + i*8
+            self.canvas.create_oval(12, y, 15, y+3, fill=grip_color, outline="")
+            self.canvas.create_oval(18, y, 21, y+3, fill=grip_color, outline="")
+        
+        # Recreate pet image holder
+        self.pet_image_item = self.canvas.create_image(45, 32, anchor="center")
+        
+        # Recreate text labels
+        self.status_item = self.canvas.create_text(75, 20, text="IDLE", font=("Segoe UI", 12, "bold"), fill="#A6DA95", anchor="w")
+        self.detail_item = self.canvas.create_text(75, 42, text="Startup", font=("Segoe UI", 9), fill="#8AADF4", anchor="w")
+        
+        # Recreate close button and connection status
+        self.close_item = self.canvas.create_text(self.width - 15, 15, text="✖", font=("Segoe UI", 10, "bold"), fill="#ED8796", activefill="#F5BDE6")
+        self.conn_status_item = self.canvas.create_text(self.width - 15, 45, text="", font=("Segoe UI", 8, "bold"), anchor="e")
 
     def update_dock_color(self, state):
         if state == AntigravityState.THINKING:
@@ -792,24 +856,25 @@ class DesktopPetUI:
         except Exception as e:
             print(f"Play error: {e}")
 
-    def update_appearance(self, state, detail):
+    def update_appearance(self, state, detail, force_silent=False):
         base_dir = get_base_dir()
         if state != self.current_state:
             # Check for fireworks trigger: transition from working state to IDLE
-            if state == AntigravityState.IDLE and self.current_state in [AntigravityState.THINKING, AntigravityState.WAITING_CONFIRM]:
+            if not force_silent and state == AntigravityState.IDLE and self.current_state in [AntigravityState.THINKING, AntigravityState.WAITING_CONFIRM]:
                 self.show_fireworks()
 
             # Play Sound
-            config = load_config()
-            voice_profile = config.get("voice_profile", "baba")
-            if state == AntigravityState.IDLE and self.current_state is not None:
-                self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "idle.mp3"))
-            elif state == AntigravityState.THINKING:
-                self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "thinking.mp3"))
-            elif state == AntigravityState.WAITING_CONFIRM:
-                self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "waiting.mp3"))
-            elif state == AntigravityState.ERROR:
-                self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "error.mp3"))
+            if not force_silent:
+                config = load_config()
+                voice_profile = config.get("voice_profile", "baba")
+                if state == AntigravityState.IDLE and self.current_state is not None:
+                    self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "idle.mp3"))
+                elif state == AntigravityState.THINKING:
+                    self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "thinking.mp3"))
+                elif state == AntigravityState.WAITING_CONFIRM:
+                    self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "waiting.mp3"))
+                elif state == AntigravityState.ERROR:
+                    self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "error.mp3"))
                 
             # Change GIF Animation
             if self.current_anim:
@@ -919,6 +984,38 @@ class DesktopPetUI:
                     self.thinking_start_time = time.time()
             self.root.after(100, self.update_ui)
 
+    def schedule_canvas_heal(self):
+        """Periodically force-redraw all canvas items to recover from DWM transparency glitches.
+        On Windows, the Desktop Window Manager can sometimes 'lose' rendered pixels
+        on transparent-color windows, causing text/images to become invisible.
+        This method forces Tkinter to re-submit all canvas pixels."""
+        try:
+            if not self.is_docked:
+                now = time.time()
+                if now - self._last_canvas_heal >= self._canvas_heal_interval:
+                    self._last_canvas_heal = now
+                    self._force_canvas_redraw()
+        except Exception as e:
+            print(f"Canvas heal error: {e}")
+        self.root.after(5000, self.schedule_canvas_heal)
+
+    def _force_canvas_redraw(self):
+        """Force a full canvas redraw by briefly nudging the window geometry.
+        This causes DWM to re-composite the window and Tkinter to repaint all items."""
+        try:
+            # Get current position
+            geo = self.root.geometry()
+            # Force Tkinter to re-render the canvas by toggling all items
+            for item in self.canvas.find_all():
+                current_state = self.canvas.itemcget(item, "state")
+                if current_state != "hidden":
+                    self.canvas.itemconfigure(item, state="hidden")
+                    self.canvas.itemconfigure(item, state="normal")
+            # Force geometry update cycle
+            self.root.update_idletasks()
+        except Exception:
+            pass
+
     def on_state_change(self, new_state, reason):
         self.state_queue.put((new_state, reason))
         if self._last_sent_state != new_state:
@@ -957,32 +1054,52 @@ class DesktopPetUI:
         event_handler = LogHandler(callback=self.on_state_change)
         observer = Observer()
         
-        if log_file:
-            event_handler.set_file(log_file)
-            observer.schedule(event_handler, os.path.dirname(log_file), recursive=False)
-            observer.start()
-        else:
-            self.state_queue.put((AntigravityState.ERROR, "No logs found"))
+        try:
+            if log_file:
+                event_handler.set_file(log_file)
+                observer.schedule(event_handler, os.path.dirname(log_file), recursive=False)
+                observer.start()
+            else:
+                self.state_queue.put((AntigravityState.ERROR, "No logs found"))
+        except Exception as e:
+            print(f"[-] Error initializing log observer: {e}")
+            self.state_queue.put((AntigravityState.ERROR, f"Observer init error: {e}"))
 
         try:
             while True:
-                time.sleep(5)
-                config = load_config()
-                brain_dir = config.get("brain_dir", "")
-                latest_log = get_latest_conversation_log(brain_dir)
-                
-                if latest_log and latest_log != event_handler.current_file:
-                    event_handler.set_file(latest_log)
-                    if observer.is_alive():
-                        observer.unschedule_all()
-                    else:
-                        observer.start()
-                    observer.schedule(event_handler, os.path.dirname(latest_log), recursive=False)
-        except Exception:
-            if observer.is_alive():
-                observer.stop()
-        if observer.is_alive():
-            observer.join()
+                try:
+                    time.sleep(5)
+                    config = load_config()
+                    brain_dir = config.get("brain_dir", "")
+                    latest_log = get_latest_conversation_log(brain_dir)
+                    
+                    if latest_log and latest_log != event_handler.current_file:
+                        event_handler.set_file(latest_log)
+                        if observer.is_alive():
+                            try:
+                                observer.unschedule_all()
+                            except Exception:
+                                pass
+                        else:
+                            try:
+                                observer.start()
+                            except Exception:
+                                pass
+                        
+                        try:
+                            observer.schedule(event_handler, os.path.dirname(latest_log), recursive=False)
+                        except Exception as e:
+                            print(f"[-] Error scheduling observer watch: {e}")
+                except Exception as e:
+                    print(f"[-] Error in background task loop: {e}")
+                    time.sleep(2)
+        finally:
+            try:
+                if observer.is_alive():
+                    observer.stop()
+                    observer.join()
+            except Exception:
+                pass
 
     def start_background_listener(self):
         t = threading.Thread(target=self.background_task, daemon=True)

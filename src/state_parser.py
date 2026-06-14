@@ -27,11 +27,14 @@ class LogHandler(FileSystemEventHandler):
         self.current_file = None
 
     def set_file(self, file_path):
-        self.current_file = file_path
-        with open(self.current_file, 'r', encoding='utf-8') as f:
-            f.seek(0, 2) # Go to end of file
-            self.last_pos = f.tell()
-        print(f"[*] Started monitoring log file: {self.current_file}")
+        try:
+            self.current_file = file_path
+            with open(self.current_file, 'r', encoding='utf-8') as f:
+                f.seek(0, 2) # Go to end of file
+                self.last_pos = f.tell()
+            print(f"[*] Started monitoring log file: {self.current_file}")
+        except Exception as e:
+            print(f"[-] Error setting file for monitoring: {e}")
 
     def on_modified(self, event):
         # In Windows, paths might have different slashes, so normalize for comparison
@@ -100,28 +103,55 @@ class LogHandler(FileSystemEventHandler):
                      self.callback(AntigravityState.ERROR, "System error detected")
                 elif "the user has automatically approved" in content.lower():
                      self.callback(AntigravityState.THINKING, "Auto-approved")
-        except json.JSONDecodeError:
-            pass
+        except Exception as e:
+            print(f"[-] Error parsing log line: {e}")
 
 def get_latest_conversation_log(brain_dir):
-    if not brain_dir or not os.path.exists(brain_dir):
-        print(f"[-] Brain directory not found: {brain_dir}")
-        return None
-        
-    dirs = [os.path.join(brain_dir, d) for d in os.listdir(brain_dir) if os.path.isdir(os.path.join(brain_dir, d))]
-    valid_logs = []
-    for d in dirs:
-        log_dir = os.path.join(d, ".system_generated", "logs")
-        log_file_jsonl = os.path.join(log_dir, "transcript.jsonl")
-        log_file_txt = os.path.join(log_dir, "overview.txt")
-        
-        if os.path.exists(log_file_jsonl):
-            valid_logs.append(log_file_jsonl)
-        if os.path.exists(log_file_txt):
-            valid_logs.append(log_file_txt)
+    try:
+        if not brain_dir or not os.path.exists(brain_dir):
+            print(f"[-] Brain directory not found: {brain_dir}")
+            return None
             
-    if not valid_logs: 
-        print("[-] No conversation log files found.")
+        dirs = []
+        try:
+            for d in os.listdir(brain_dir):
+                full_path = os.path.join(brain_dir, d)
+                if os.path.isdir(full_path):
+                    dirs.append(full_path)
+        except Exception as e:
+            print(f"[-] Error listing brain directory: {e}")
+            return None
+            
+        valid_logs = []
+        for d in dirs:
+            try:
+                log_dir = os.path.join(d, ".system_generated", "logs")
+                log_file_jsonl = os.path.join(log_dir, "transcript.jsonl")
+                log_file_txt = os.path.join(log_dir, "overview.txt")
+                
+                if os.path.exists(log_file_jsonl):
+                    valid_logs.append(log_file_jsonl)
+                if os.path.exists(log_file_txt):
+                    valid_logs.append(log_file_txt)
+            except Exception:
+                pass # Skip directory if it has access issues or gets deleted mid-process
+                
+        if not valid_logs: 
+            print("[-] No conversation log files found.")
+            return None
+            
+        # Safely compute max by catching potential FileNotFoundError if a file gets deleted during check
+        try:
+            existing_logs = [log for log in valid_logs if os.path.exists(log)]
+            if not existing_logs:
+                return None
+            return max(existing_logs, key=os.path.getmtime)
+        except Exception as e:
+            print(f"[-] Error sorting log files by mtime: {e}")
+            existing_logs = [log for log in valid_logs if os.path.exists(log)]
+            if existing_logs:
+                return existing_logs[0]
+            return None
+    except Exception as e:
+        print(f"[-] Error getting latest conversation log: {e}")
         return None
-        
-    return max(valid_logs, key=os.path.getmtime)

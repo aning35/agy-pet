@@ -1,4 +1,5 @@
 import sys
+import math
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
@@ -98,6 +99,15 @@ class DesktopPetUI:
         
         self.state_queue = queue.Queue()
         self.current_state = None
+        
+        # Docking state
+        self.is_docked = False
+        self.dock_edge = None
+        self.undocked_geometry = None
+        self.dock_threshold = 40
+        self.bar_thickness = 6
+        self.dock_start_x = None
+        self.dock_start_y = None
         
         try:
             pygame.mixer.init()
@@ -523,21 +533,150 @@ class DesktopPetUI:
             settings_win.geometry(f"{req_width}x{req_height}")
 
     def start_move(self, event):
-        self.x = event.x_root
-        self.y = event.y_root
+        if self.is_docked:
+            self.dock_start_x = event.x_root
+            self.dock_start_y = event.y_root
+        else:
+            self.drag_offset_x = event.x_root - self.root.winfo_x()
+            self.drag_offset_y = event.y_root - self.root.winfo_y()
+            self.current_win_x = self.root.winfo_x()
+            self.current_win_y = self.root.winfo_y()
 
     def stop_move(self, event):
-        self.x = None
-        self.y = None
+        if self.is_docked:
+            self.dock_start_x = None
+            self.dock_start_y = None
+            return
+            
+        # Check for docking using internal tracked coordinates to bypass Tkinter async geometry lag
+        screen_w = self.root.winfo_screenwidth()
+        
+        win_x = getattr(self, 'current_win_x', self.root.winfo_x())
+        win_y = getattr(self, 'current_win_y', self.root.winfo_y())
+        
+        if win_x <= self.dock_threshold:
+            self.dock_to_edge("left")
+        elif win_x + self.width >= screen_w - self.dock_threshold:
+            self.dock_to_edge("right")
+        elif win_y <= self.dock_threshold:
+            self.dock_to_edge("top")
 
     def do_move(self, event):
-        deltax = event.x_root - self.x
-        deltay = event.y_root - self.y
-        x = self.root.winfo_x() + deltax
-        y = self.root.winfo_y() + deltay
-        self.root.geometry(f"+{x}+{y}")
-        self.x = event.x_root
-        self.y = event.y_root
+        if self.is_docked:
+            if self.dock_start_x is not None and self.dock_start_y is not None:
+                dx = event.x_root - self.dock_start_x
+                dy = event.y_root - self.dock_start_y
+                
+                # Check if moved far enough to undock
+                if (self.dock_edge == "left" and dx > 60) or \
+                   (self.dock_edge == "right" and dx < -60) or \
+                   (self.dock_edge == "top" and dy > 60):
+                    self.undock(event.x_root, event.y_root)
+            return
+
+        x = event.x_root - self.drag_offset_x
+        y = event.y_root - self.drag_offset_y
+        
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        
+        if x < 0:
+            x = 0
+        elif x > screen_w - self.width:
+            x = screen_w - self.width
+            
+        if y < 0:
+            y = 0
+        elif y > screen_h - self.height:
+            y = screen_h - self.height
+
+        self.current_win_x = x
+        self.current_win_y = y
+        self.root.geometry(f"{self.width}x{self.height}{x:+d}{y:+d}")
+
+    def hex_to_rgb(self, hex_color):
+        hex_color = hex_color.lstrip('#')
+        return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+    def rgb_to_hex(self, rgb):
+        return '#{:02x}{:02x}{:02x}'.format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+    def dock_to_edge(self, edge):
+        self.is_docked = True
+        self.dock_edge = edge
+        self.undocked_geometry = self.root.geometry()
+        
+        # Hide pill elements
+        for item in self.canvas.find_all():
+            self.canvas.itemconfigure(item, state="hidden")
+            
+        if self.current_anim:
+            self.current_anim.stop()
+            
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        
+        if edge == "left":
+            self.root.geometry(f"{self.bar_thickness}x{screen_h}+0+0")
+            self.dock_bar = self.canvas.create_rectangle(0, 0, self.bar_thickness, screen_h, fill="#A6DA95", outline="", tag="dock_bar")
+        elif edge == "right":
+            self.root.geometry(f"{self.bar_thickness}x{screen_h}+{screen_w - self.bar_thickness}+0")
+            self.dock_bar = self.canvas.create_rectangle(0, 0, self.bar_thickness, screen_h, fill="#A6DA95", outline="", tag="dock_bar")
+        elif edge == "top":
+            self.root.geometry(f"{screen_w}x{self.bar_thickness}+0+0")
+            self.dock_bar = self.canvas.create_rectangle(0, 0, screen_w, self.bar_thickness, fill="#A6DA95", outline="", tag="dock_bar")
+            
+            
+        self.update_dock_color(self.current_state)
+
+    def undock(self, mouse_x, mouse_y):
+        self.is_docked = False
+        self.dock_edge = None
+        
+        self.canvas.delete("dock_bar")
+        
+        # Restore pill elements
+        for item in self.canvas.find_all():
+            self.canvas.itemconfigure(item, state="normal")
+            
+        if self.current_anim:
+            self.current_anim.start()
+            
+        # Center the restored window around the mouse pointer
+        new_x = mouse_x - self.width // 2
+        new_y = mouse_y - self.height // 2
+        
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        
+        if new_x < 0:
+            new_x = 0
+        elif new_x > screen_w - self.width:
+            new_x = screen_w - self.width
+            
+        if new_y < 0:
+            new_y = 0
+        elif new_y > screen_h - self.height:
+            new_y = screen_h - self.height
+            
+        self.current_win_x = new_x
+        self.current_win_y = new_y
+        self.drag_offset_x = mouse_x - new_x
+        self.drag_offset_y = mouse_y - new_y
+        self.root.geometry(f"{self.width}x{self.height}{new_x:+d}{new_y:+d}")
+
+    def update_dock_color(self, state):
+        if state == AntigravityState.THINKING:
+            color = "#7497DE"
+        elif state == AntigravityState.WAITING_CONFIRM:
+            color = "#D4BD8C"
+        elif state == AntigravityState.ERROR:
+            color = "#D47785"
+        else: # IDLE
+            color = "#91C282"
+            
+        if self.canvas.find_withtag("dock_bar"):
+            self.canvas.itemconfig("dock_bar", fill=color)
 
     def play_sound(self, file_path):
         try:
@@ -581,9 +720,13 @@ class DesktopPetUI:
             
             # Start new animation (250ms per frame)
             self.current_anim = AnimatedGif(self.canvas, self.pet_image_item, gif_path, delay=250)
-            self.current_anim.start()
+            if not self.is_docked:
+                self.current_anim.start()
             
             self.current_state = state
+            
+            if self.is_docked:
+                self.update_dock_color(state)
             
             if state == AntigravityState.THINKING:
                 self.thinking_start_time = time.time()

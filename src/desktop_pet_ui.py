@@ -116,7 +116,6 @@ class DesktopPetUI:
         self.stats_file = os.path.join(os.path.dirname(__file__), "..", "pet_stats.json")
         self.stats = {"thinking_time": 0, "errors": 0, "uptime": 0}
         self.session_start = time.time()
-        self.idle_start_time = time.time()
         self.last_think_start = None
         self.load_stats()
         
@@ -837,16 +836,6 @@ class DesktopPetUI:
         short_detail = detail[:22] + "..." if len(detail) > 22 else detail
         self.canvas.itemconfig(self.detail_item, text=short_detail)
         
-        # Idle Tracker
-        if state == AntigravityState.IDLE:
-            idle_duration = time.time() - self.idle_start_time
-            if idle_duration > 30 and not self.is_docked:
-                # Occasional idle swap text
-                if int(time.time()) % 10 < 3:
-                    self.canvas.itemconfig(self.status_item, text="SLEEPING", fill="#6C7086")
-        else:
-            self.idle_start_time = time.time()
-            
         # Uptime Tracker
         now = time.time()
         self.stats["uptime"] = now - self.session_start

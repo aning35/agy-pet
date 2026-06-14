@@ -497,7 +497,7 @@ class DesktopPetUI:
         about_frame = ttk.Frame(padding_frame)
         about_frame.pack(fill="x", pady=5)
         ttk.Label(about_frame, text="About AgyPet", font=("Segoe UI", 10, "bold")).pack(anchor="center", pady=(0, 5))
-        ttk.Label(about_frame, text="Version: v0.1.5", font=("Segoe UI", 9)).pack(anchor="center")
+        ttk.Label(about_frame, text="Version: v0.1.2", font=("Segoe UI", 9)).pack(anchor="center")
         ttk.Label(about_frame, text="Author: aning35", font=("Segoe UI", 9)).pack(anchor="center")
         
         def open_github(event):

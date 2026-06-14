@@ -101,9 +101,14 @@ def get_latest_conversation_log(brain_dir):
     dirs = [os.path.join(brain_dir, d) for d in os.listdir(brain_dir) if os.path.isdir(os.path.join(brain_dir, d))]
     valid_logs = []
     for d in dirs:
-        log_file = os.path.join(d, ".system_generated", "logs", "transcript.jsonl")
-        if os.path.exists(log_file):
-            valid_logs.append(log_file)
+        log_dir = os.path.join(d, ".system_generated", "logs")
+        log_file_jsonl = os.path.join(log_dir, "transcript.jsonl")
+        log_file_txt = os.path.join(log_dir, "overview.txt")
+        
+        if os.path.exists(log_file_jsonl):
+            valid_logs.append(log_file_jsonl)
+        if os.path.exists(log_file_txt):
+            valid_logs.append(log_file_txt)
             
     if not valid_logs: 
         print("[-] No conversation log files found.")

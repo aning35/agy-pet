@@ -78,7 +78,7 @@ Make sure you have Python 3.10+ installed.
 
 ```bash
 # Clone the repository
-git clone https://github.com/YourUsername/agy-pet.git
+git clone https://github.com/aning35/agy-pet.git
 cd agy-pet
 
 # Create and activate virtual environment

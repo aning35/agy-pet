@@ -554,6 +554,10 @@ class DesktopPetUI:
         win_x = getattr(self, 'current_win_x', self.root.winfo_x())
         win_y = getattr(self, 'current_win_y', self.root.winfo_y())
         
+        # Only support edge docking on Windows as requested
+        if sys.platform != "win32":
+            return
+            
         if win_x <= self.dock_threshold:
             self.dock_to_edge("left")
         elif win_x + self.width >= screen_w - self.dock_threshold:

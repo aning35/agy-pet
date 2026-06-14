@@ -64,7 +64,17 @@ class LogHandler(FileSystemEventHandler):
             source = data.get("source", "")
             msg_type = data.get("type", "")
             status = data.get("status", "")
-            content = data.get("content", "")
+            content = str(data.get("content", ""))
+            
+            # 1. Global Error Checks
+            if status == "ERROR" or msg_type == "ERROR" or msg_type == "SYSTEM_ERROR":
+                self.callback(AntigravityState.ERROR, "System Error")
+                return
+                
+            if "error: there was a problem" in content.lower() or "retries remaining" in content.lower() or "网络中断" in content or "重试" in content:
+                if source == "SYSTEM" or source == "USER_EXPLICIT":
+                    self.callback(AntigravityState.ERROR, "Network Error")
+                    return
             
             if source == "USER_EXPLICIT" and msg_type == "USER_INPUT":
                 self.callback(AntigravityState.THINKING, "Received user input")

@@ -29,7 +29,8 @@ DEFAULT_CONFIG = {
     "settings_x": -1,
     "settings_y": -1,
     "pet_x": -1,
-    "pet_y": -1
+    "pet_y": -1,
+    "language": "en"
 }
 
 def load_config():

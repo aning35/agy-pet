@@ -29,7 +29,15 @@ jobs:
           path: dist/AgyPet.exe
 
   build-macos:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-13, macos-latest]
+        include:
+          - os: macos-13
+            arch: x86_64
+          - os: macos-latest
+            arch: arm64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -56,12 +64,12 @@ jobs:
       - name: Create DMG
         run: |
           # Use dmgbuild to create a beautifully styled DMG
-          dmgbuild -s settings.py "AgyPet" AgyPet-macOS.dmg
+          dmgbuild -s settings.py "AgyPet" AgyPet-macOS-${{ matrix.arch }}.dmg
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AgyPet-macOS
-          path: AgyPet-macOS.dmg
+          name: AgyPet-macOS-${{ matrix.arch }}
+          path: AgyPet-macOS-${{ matrix.arch }}.dmg
 
   build-linux:
     runs-on: ubuntu-latest

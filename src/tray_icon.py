@@ -22,6 +22,19 @@ def _create_default_image():
         return image
 
 def run_tray_process(command_queue):
+    from config_manager import load_config
+    from i18n import t
+
+    def get_label(key):
+        def _get(item):
+            try:
+                config = load_config()
+                lang = config.get("language", "en")
+                return t(key, lang)
+            except Exception:
+                return t(key, "en")
+        return _get
+
     def on_toggle(icon, item):
         command_queue.put("TOGGLE")
         
@@ -34,9 +47,9 @@ def run_tray_process(command_queue):
         
     image = _create_default_image()
     menu = pystray.Menu(
-        pystray.MenuItem("Show/Hide Pet", on_toggle, default=True),
-        pystray.MenuItem("Settings", on_settings),
-        pystray.MenuItem("Quit", on_quit)
+        pystray.MenuItem(get_label("tray_toggle"), on_toggle, default=True),
+        pystray.MenuItem(get_label("tray_settings"), on_settings),
+        pystray.MenuItem(get_label("tray_quit"), on_quit)
     )
     
     icon = pystray.Icon("AgyPet", image, "AgyPet v0.1.2", menu)

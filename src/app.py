@@ -30,11 +30,14 @@ def main():
     lock_socket = get_lock()
     if not lock_socket:
         print("AgyPet is already running!")
+        config = load_config()
+        lang = config.get("language", "en")
+        from i18n import t
         import tkinter as tk
         from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("AgyPet v0.1.2", "AgyPet is already running in the background!\nCheck your system tray (near the clock).")
+        messagebox.showinfo("AgyPet v0.1.2", t("msg_already_running", lang))
         return
 
     config = load_config()

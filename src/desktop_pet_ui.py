@@ -15,6 +15,7 @@ from bleak import BleakScanner
 
 from state_parser import LogHandler, AntigravityState, get_latest_conversation_log, get_today_statistics
 from config_manager import load_config, save_config
+from i18n import t
 
 def get_base_dir():
     if getattr(sys, 'frozen', False):
@@ -72,6 +73,8 @@ class DesktopPetUI:
         self.command_queue = command_queue
         self.is_visible = True
         self._last_sent_state = None
+        config = load_config()
+        self.lang = config.get("language", "en")
         self.root.title("Agy Pet")
         
         # Frameless and always on top
@@ -196,23 +199,7 @@ class DesktopPetUI:
         
         # Context menu
         self.menu = tk.Menu(self.root, tearoff=0)
-        self.menu.add_command(label="📊 Show Dashboard", command=self.toggle_dashboard)
-        self.menu.add_separator()
-        self.menu.add_command(label="⚙️ Settings", command=self.open_settings)
-        self.menu.add_command(label="📂 Open AI Logs", command=self.open_log_folder)
-        self.menu.add_command(label="📂 Open Hardware Log", command=self.open_hardware_log)
-        test_hw_menu = tk.Menu(self.menu, tearoff=0)
-        test_hw_menu.add_command(label="IDLE (0x01)", command=lambda: self.on_state_change(AntigravityState.IDLE, "Test Hardware"))
-        test_hw_menu.add_command(label="THINKING (0x02)", command=lambda: self.on_state_change(AntigravityState.THINKING, "Test Hardware"))
-        test_hw_menu.add_command(label="WAITING (0x03)", command=lambda: self.on_state_change(AntigravityState.WAITING_CONFIRM, "Test Hardware"))
-        test_hw_menu.add_command(label="ERROR (0x04)", command=lambda: self.on_state_change(AntigravityState.ERROR, "Test Hardware"))
-        test_hw_menu.add_separator()
-        test_hw_menu.add_command(label="DRINK WATER (Audio)", command=self.test_drink_water)
-        
-        self.menu.add_cascade(label="🛠️ Test & Debug", menu=test_hw_menu)
-        self.menu.add_command(label="🎆 Test Fireworks UI", command=self.show_fireworks)
-        self.menu.add_separator()
-        self.menu.add_command(label="❌ Exit", command=lambda: self.root.destroy())
+        self.rebuild_context_menu()
 
         self.start_background_listener()
         self.poll_queue()
@@ -236,6 +223,73 @@ class DesktopPetUI:
         # Use NSApplication to properly activate the process, and maintain focus periodically.
         if sys.platform == "darwin":
             self.root.after(200, lambda: self._mac_activate(source="startup"))
+            
+    def t(self, key, **kwargs):
+        return t(key, self.lang, **kwargs)
+        
+    def translate_detail(self, detail):
+        if not detail:
+            return ""
+        # Match "Calling X tools"
+        if detail.startswith("Calling ") and detail.endswith(" tools"):
+            try:
+                num = detail.split(" ")[1]
+                if self.lang == "zh":
+                    return f"正在调用 {num} 个工具"
+                else:
+                    return f"Calling {num} tools"
+            except Exception:
+                pass
+                
+        # Match "Observer init error: ..."
+        if detail.startswith("Observer init error: "):
+            err = detail[len("Observer init error: "):]
+            if self.lang == "zh":
+                return f"监听器初始化错误: {err}"
+            else:
+                return f"Observer init error: {err}"
+
+        mappings = {
+            "Received user input": {"en": "Received user input", "zh": "收到用户输入"},
+            "Intermediate model step": {"en": "Intermediate model step", "zh": "模型中间步骤"},
+            "Auto-approved": {"en": "Auto-approved", "zh": "自动批准"},
+            "Waiting for plan review": {"en": "Waiting for plan review", "zh": "等待方案评审"},
+            "Waiting for command confirmation": {"en": "Waiting for command confirmation", "zh": "等待命令确认"},
+            "Model response complete": {"en": "Model response complete", "zh": "模型响应完成"},
+            "System error detected": {"en": "System error detected", "zh": "检测到系统错误"},
+            "System Error": {"en": "System Error", "zh": "系统错误"},
+            "Fatal Agent Error": {"en": "Fatal Agent Error", "zh": "智能体致命错误"},
+            "No logs found": {"en": "No logs found", "zh": "未找到日志"},
+            "Restored from dock": {"en": "Restored from dock", "zh": "从停靠栏恢复"},
+            "Test Hardware": {"en": "Test Hardware", "zh": "测试硬件"},
+            "Startup": {"en": "Startup", "zh": "正在启动"},
+            "Monitoring logs": {"en": "Listening...", "zh": "正在监听..."}
+        }
+        
+        if detail in mappings:
+            return mappings[detail].get(self.lang, detail)
+        return self.t(detail)
+        
+    def rebuild_context_menu(self):
+        self.menu.delete(0, "end")
+        self.menu.add_command(label=self.t("menu_dashboard"), command=self.toggle_dashboard)
+        self.menu.add_separator()
+        self.menu.add_command(label=self.t("menu_settings"), command=self.open_settings)
+        self.menu.add_command(label=self.t("menu_ai_logs"), command=self.open_log_folder)
+        self.menu.add_command(label=self.t("menu_hw_log"), command=self.open_hardware_log)
+        
+        test_hw_menu = tk.Menu(self.menu, tearoff=0)
+        test_hw_menu.add_command(label=self.t("menu_idle"), command=lambda: self.on_state_change(AntigravityState.IDLE, "Test Hardware"))
+        test_hw_menu.add_command(label=self.t("menu_thinking"), command=lambda: self.on_state_change(AntigravityState.THINKING, "Test Hardware"))
+        test_hw_menu.add_command(label=self.t("menu_waiting"), command=lambda: self.on_state_change(AntigravityState.WAITING_CONFIRM, "Test Hardware"))
+        test_hw_menu.add_command(label=self.t("menu_error"), command=lambda: self.on_state_change(AntigravityState.ERROR, "Test Hardware"))
+        test_hw_menu.add_separator()
+        test_hw_menu.add_command(label=self.t("menu_drink"), command=self.test_drink_water)
+        
+        self.menu.add_cascade(label=self.t("menu_debug"), menu=test_hw_menu)
+        self.menu.add_command(label=self.t("menu_fireworks"), command=self.show_fireworks)
+        self.menu.add_separator()
+        self.menu.add_command(label=self.t("menu_exit"), command=lambda: self.root.destroy())
     
     def _mac_activate(self, source="unknown"):
         """Activate this process on macOS so overrideredirect windows receive mouse events."""
@@ -343,23 +397,23 @@ class DesktopPetUI:
         y = event.y_root if event else self.root.winfo_pointery()
         
         self.dashboard_window = tk.Toplevel(self.root)
-        self.dashboard_window.title("AgyPet Stats")
+        self.dashboard_window.title(self.t("menu_dashboard"))
         self.dashboard_window.geometry(f"200x180+{x+10}+{y+10}")
         self.dashboard_window.configure(bg="#303446")
         self.dashboard_window.overrideredirect(True)
         self.dashboard_window.attributes("-topmost", True)
         
-        ttk.Label(self.dashboard_window, text="Today's Workload", font=("Segoe UI", 10, "bold"), background="#303446", foreground="#A6DA95").pack(pady=5)
+        ttk.Label(self.dashboard_window, text=self.t("dash_title"), font=("Segoe UI", 10, "bold"), background="#303446", foreground="#A6DA95").pack(pady=5)
         
         config = load_config()
         stats = get_today_statistics(config.get("brain_dir", ""))
         
-        ttk.Label(self.dashboard_window, text=f"User Requests: {stats['user_requests']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
-        ttk.Label(self.dashboard_window, text=f"AI Actions: {stats['model_steps']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
-        ttk.Label(self.dashboard_window, text=f"Tools Used: {stats['tool_calls']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
-        ttk.Label(self.dashboard_window, text=f"User Chars: {stats.get('user_chars', 0)}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
-        ttk.Label(self.dashboard_window, text=f"AI Chars: {stats.get('ai_chars', 0)}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
-        ttk.Label(self.dashboard_window, text=f"Errors: {stats['errors']}", background="#303446", foreground="#ED8796").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=self.t("dash_requests", val=stats['user_requests']), background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=self.t("dash_actions", val=stats['model_steps']), background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=self.t("dash_tools", val=stats['tool_calls']), background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=self.t("dash_user_chars", val=stats.get('user_chars', 0)), background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=self.t("dash_ai_chars", val=stats.get('ai_chars', 0)), background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=self.t("dash_errors", val=stats['errors']), background="#303446", foreground="#ED8796").pack(anchor="w", padx=15)
         
         # Close on click
         self.dashboard_window.bind("<Button-1>", lambda e: self.toggle_dashboard(None))
@@ -448,7 +502,7 @@ class DesktopPetUI:
             else:
                 subprocess.Popen(['explorer', os.path.normpath(brain_dir)])
         else:
-            messagebox.showwarning("Not Found", "No active log directory found.\nPlease configure it in Settings.", parent=self.root)
+            messagebox.showwarning(self.t("dialog_not_found"), self.t("msg_no_brain_dir"), parent=self.root)
 
     def open_hardware_log(self):
         try:
@@ -464,9 +518,9 @@ class DesktopPetUI:
                 else:
                     os.startfile(os.path.normpath(log_file))
             else:
-                messagebox.showwarning("Not Found", "No hardware log found yet.\nLog will be created after the first BLE/Serial connection attempt.", parent=self.root)
+                messagebox.showwarning(self.t("dialog_not_found"), self.t("msg_no_hw_log"), parent=self.root)
         except Exception as e:
-            messagebox.showerror("Error", f"Could not open log: {e}", parent=self.root)
+            messagebox.showerror(self.t("dialog_error"), self.t("msg_open_log_err", e=e), parent=self.root)
 
     def show_context_menu(self, event):
         import time
@@ -503,7 +557,6 @@ class DesktopPetUI:
             
         settings_win = tk.Toplevel(self.root)
         self.settings_win = settings_win
-        settings_win.title("AgyPet Settings")
         
         config = load_config()
         settings_x = config.get("settings_x", -1)
@@ -511,8 +564,9 @@ class DesktopPetUI:
         if settings_x != -1 and settings_y != -1:
             settings_win.geometry(f"+{settings_x}+{settings_y}")
             
-        # We will auto-size the window height after all widgets are added
-        settings_win.minsize(480, 500)
+        # Limit height to a reasonable value and let the user resize it
+        settings_win.minsize(500, 450)
+        settings_win.geometry(f"500x550+{settings_x}+{settings_y}" if settings_x != -1 else "500x550")
             
         if sys.platform != "darwin":
             settings_win.transient(self.root)
@@ -524,7 +578,6 @@ class DesktopPetUI:
             config["settings_x"] = settings_win.winfo_x()
             config["settings_y"] = settings_win.winfo_y()
             save_config(config)
-            # Fix macOS PRIMARY selection bug by removing focus from entries before destroy
             self.root.focus_set()
             settings_win.destroy()
             self.settings_win = None
@@ -533,44 +586,102 @@ class DesktopPetUI:
             
         settings_win.protocol("WM_DELETE_WINDOW", on_close)
         
-        padding_frame = ttk.Frame(settings_win, padding="20")
-        padding_frame.pack(fill=tk.BOTH, expand=True)
+        # Configure custom frame background style
+        self.style.configure("Settings.TFrame", background="#ECEFF4")
         
-        ttk.Label(padding_frame, text="Connection Mode:", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
-        mode_var = tk.StringVar(master=settings_win, value=config.get("mode", "none"))
-        modes = [("No Hardware (Desktop Only)", "none"), ("Serial Port (USB/SPP)", "serial"), ("Bluetooth LE (BLE)", "ble")]
-        for text, mode in modes:
-            ttk.Radiobutton(padding_frame, text=text, value=mode, variable=mode_var).pack(anchor="w")
+        # 1. Fixed Save Button Frame at the bottom
+        save_btn_frame = ttk.Frame(settings_win, padding=(20, 10, 20, 20), style="Settings.TFrame")
+        save_btn_frame.pack(side="bottom", fill="x")
+        
+        # 2. Scrollable container in the middle
+        container = ttk.Frame(settings_win)
+        container.pack(fill=tk.BOTH, expand=True)
+        
+        canvas = tk.Canvas(container, borderwidth=0, highlightthickness=0, bg="#ECEFF4")
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        
+        scrollable_frame = ttk.Frame(canvas, padding="20", style="Settings.TFrame")
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+        
+        canvas_frame_id = canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        
+        def configure_canvas(event):
+            canvas.itemconfig(canvas_frame_id, width=event.width)
             
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        canvas.bind('<Configure>', configure_canvas)
         
-        ttk.Label(padding_frame, text="Serial Settings (if Serial mode):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
-        serial_frame = ttk.Frame(padding_frame)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill=tk.BOTH, expand=True)
+        scrollbar.pack(side="right", fill=tk.Y)
+        
+        # 3. Add Settings Widgets to scrollable_frame
+        # Language selector
+        lang_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        lang_label.pack(anchor="w", pady=(0, 5))
+        
+        current_lang = config.get("language", "en")
+        lang_var = tk.StringVar(master=settings_win, value="English" if current_lang == "en" else "中文")
+        lang_cb = ttk.Combobox(scrollable_frame, textvariable=lang_var, values=["English", "中文"], state="readonly")
+        lang_cb.pack(anchor="w", fill="x", pady=(0, 10))
+        
+        # Connection Mode
+        conn_mode_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        conn_mode_label.pack(anchor="w", pady=(0, 5))
+        
+        mode_var = tk.StringVar(master=settings_win, value=config.get("mode", "none"))
+        r_none = ttk.Radiobutton(scrollable_frame, text="", value="none", variable=mode_var)
+        r_none.pack(anchor="w")
+        r_serial = ttk.Radiobutton(scrollable_frame, text="", value="serial", variable=mode_var)
+        r_serial.pack(anchor="w")
+        r_ble = ttk.Radiobutton(scrollable_frame, text="", value="ble", variable=mode_var)
+        r_ble.pack(anchor="w")
+        
+        sep1 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep1.pack(fill='x', pady=10)
+        
+        # Serial Settings
+        serial_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        serial_label.pack(anchor="w", pady=(0, 5))
+        serial_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         serial_frame.pack(fill="x")
-        ttk.Label(serial_frame, text="Port:").pack(side="left")
+        port_label = ttk.Label(serial_frame, text="")
+        port_label.pack(side="left")
         
         port_var = tk.StringVar(master=settings_win, value=config.get("serial_port", "COM3"))
         ttk.Entry(serial_frame, textvariable=port_var, width=8).pack(side="left", padx=5)
         
-        ttk.Label(serial_frame, text="Baud:").pack(side="left", padx=(10, 0))
+        baud_label = ttk.Label(serial_frame, text="")
+        baud_label.pack(side="left", padx=(10, 0))
         baud_var = tk.StringVar(master=settings_win, value=str(config.get("serial_baudrate", "115200")))
         ttk.Entry(serial_frame, textvariable=baud_var, width=8).pack(side="left", padx=5)
 
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        sep2 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep2.pack(fill='x', pady=10)
         
-        ttk.Label(padding_frame, text="BLE Settings (if BLE mode):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
-        ble_frame = ttk.Frame(padding_frame)
+        # BLE Settings
+        ble_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        ble_label.pack(anchor="w", pady=(0, 5))
+        ble_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         ble_frame.pack(fill="x")
-        ttk.Label(ble_frame, text="Name/MAC:").pack(side="left")
+        mac_label = ttk.Label(ble_frame, text="")
+        mac_label.pack(side="left")
         
         ble_var = tk.StringVar(master=settings_win, value=config.get("ble_name", "AgyPet"))
         ble_cb = ttk.Combobox(ble_frame, textvariable=ble_var, values=[config.get("ble_name", "AgyPet")])
         ble_cb.pack(side="left", fill="x", expand=True, padx=5)
         
-        scan_btn = ttk.Button(ble_frame, text="Scan", width=6)
+        scan_btn = ttk.Button(ble_frame, text="", width=6)
         scan_btn.pack(side="left")
         
         def do_scan():
+            current_temp_lang = "en" if lang_var.get() == "English" else "zh"
             scan_btn.config(text="...", state="disabled")
             def _bg_scan():
                 async def scan():
@@ -578,11 +689,9 @@ class DesktopPetUI:
                     results = []
                     for addr, (d, adv) in devices.items():
                         name = d.name or 'Unknown'
-                        # Check if device broadcasts AgyPet UUID
                         if '4fafc201-1fb5-459e-8fcc-c5c9c331914b' in adv.service_uuids:
                             name = f"✅ [AgyPet] {name}"
                             
-                        # Format the UUIDs for display to help identify unknown devices
                         uuid_str = ""
                         if adv.service_uuids:
                             short_uuids = [(u.split('-')[0].lstrip('0') or '0') for u in adv.service_uuids]
@@ -590,32 +699,34 @@ class DesktopPetUI:
                             
                         results.append(f"{name} ({d.address}){uuid_str}")
                     
-                    # Sort so that AgyPet devices appear at the top
                     results.sort(key=lambda x: (0 if "✅ [AgyPet]" in x else 1, x))
                     return results
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 names = loop.run_until_complete(scan())
                 loop.close()
-                self.root.after(0, _scan_done, names)
+                self.root.after(0, _scan_done, names, current_temp_lang)
             threading.Thread(target=_bg_scan, daemon=True).start()
             
-        def _scan_done(names):
-            scan_btn.config(text="Scan", state="normal")
+        def _scan_done(names, scan_lang):
+            scan_btn.config(text=t("set_scan", scan_lang), state="normal")
             if names:
                 unique_names = list(set(names))
                 ble_cb['values'] = unique_names
                 if unique_names:
                     ble_cb.set(unique_names[0])
             else:
-                messagebox.showinfo("Scan", "No devices found.", parent=settings_win)
+                messagebox.showinfo(t("dialog_scan", scan_lang), t("msg_no_devices", scan_lang), parent=settings_win)
 
         scan_btn.config(command=do_scan)
         
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        sep3 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep3.pack(fill='x', pady=10)
         
-        ttk.Label(padding_frame, text="Log Directory (Brain Dir):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
-        dir_frame = ttk.Frame(padding_frame)
+        # Log Directory
+        dir_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        dir_label.pack(anchor="w", pady=(0, 5))
+        dir_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         dir_frame.pack(fill="x")
         
         dir_var = tk.StringVar(master=settings_win, value=config.get("brain_dir", ""))
@@ -627,12 +738,16 @@ class DesktopPetUI:
             if d:
                 dir_var.set(os.path.normpath(d))
                 
-        ttk.Button(dir_frame, text="Browse", width=8, command=browse_dir).pack(side="left")
+        browse_btn = ttk.Button(dir_frame, text="", width=8, command=browse_dir)
+        browse_btn.pack(side="left")
         
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        sep4 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep4.pack(fill='x', pady=10)
         
-        ttk.Label(padding_frame, text="Volume:", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
-        vol_frame = ttk.Frame(padding_frame)
+        # Volume
+        vol_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        vol_label.pack(anchor="w", pady=(0, 5))
+        vol_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         vol_frame.pack(fill="x")
         
         vol_var = tk.DoubleVar(master=settings_win, value=config.get("volume", 1.0))
@@ -643,57 +758,57 @@ class DesktopPetUI:
         vol_scale = ttk.Scale(vol_frame, from_=0.0, to=1.0, variable=vol_var, command=on_vol_change)
         vol_scale.pack(side="left", fill="x", expand=True)
         
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        sep5 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep5.pack(fill='x', pady=10)
         
-        ttk.Label(padding_frame, text="Voice Profile (称呼方案):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
-        voice_frame = ttk.Frame(padding_frame)
+        # Voice Profile
+        voice_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        voice_label.pack(anchor="w", pady=(0, 5))
+        voice_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         voice_frame.pack(fill="x")
         
         voice_var = tk.StringVar(master=settings_win, value=config.get("voice_profile", "baba"))
-        voice_profiles = {
-            "爸爸 (Papa)": "baba",
-            "妈妈 (Mama)": "mama",
-            "主人 (Master)": "zhuren",
-            "老板 (Boss)": "laoban",
-            "哥哥 (Brother)": "gege",
-            "宝宝 (Honey)": "baobao",
-            "董事长大人 (Chairman)": "dongshizhang",
-            "国主陛下 (Monarch)": "guozhu",
-            "皇上 (Emperor)": "huangshang"
-        }
-        voice_reverse = {v: k for k, v in voice_profiles.items()}
-        
-        voice_display_var = tk.StringVar(master=settings_win, value=voice_reverse.get(voice_var.get(), "爸爸 (Papa)"))
-        voice_cb = ttk.Combobox(voice_frame, textvariable=voice_display_var, values=list(voice_profiles.keys()), state="readonly")
+        voice_display_var = tk.StringVar(master=settings_win)
+        voice_cb = ttk.Combobox(voice_frame, textvariable=voice_display_var, state="readonly")
         voice_cb.pack(side="left", fill="x", expand=True)
         
         def on_voice_selected(event):
             selected_display = voice_display_var.get()
-            voice_var.set(voice_profiles.get(selected_display, "baba"))
+            if hasattr(settings_win, 'voice_reverse'):
+                voice_var.set(settings_win.voice_reverse.get(selected_display, "baba"))
             
         voice_cb.bind("<<ComboboxSelected>>", on_voice_selected)
         
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        sep6 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep6.pack(fill='x', pady=10)
         
-        ttk.Label(padding_frame, text="Webhook URL (Optional):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
-        hook_frame = ttk.Frame(padding_frame)
+        # Webhook URL
+        hook_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        hook_label.pack(anchor="w", pady=(0, 5))
+        hook_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         hook_frame.pack(fill="x")
         
         hook_var = tk.StringVar(master=settings_win, value=config.get("http_hook", ""))
         ttk.Entry(hook_frame, textvariable=hook_var).pack(side="left", fill="x", expand=True)
 
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        sep7 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep7.pack(fill='x', pady=10)
         
-        ttk.Label(padding_frame, text="Water Reminder Times (喝水提醒时间):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        # Water Reminder Times
+        water_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
+        water_label.pack(anchor="w", pady=(0, 5))
         
-        water_frame = ttk.Frame(padding_frame)
+        water_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         water_frame.pack(fill="x")
-        ttk.Label(water_frame, text="24-Hour times (e.g. 10:30, 15:00):").pack(side="left")
+        water_subtext_label = ttk.Label(water_frame, text="")
+        water_subtext_label.pack(side="left")
         
         water_times_var = tk.StringVar(master=settings_win, value=config.get("water_times", "9:00, 10:00, 11:00, 14:00, 15:00, 16:00, 17:00"))
         ttk.Entry(water_frame, textvariable=water_times_var).pack(side="left", fill="x", expand=True, padx=(5, 0))
         
         def save_and_close():
+            lang_code = "en" if lang_var.get() == "English" else "zh"
+            config["language"] = lang_code
             config["mode"] = mode_var.get()
             config["serial_port"] = port_var.get()
             try:
@@ -710,6 +825,11 @@ class DesktopPetUI:
             config["settings_x"] = settings_win.winfo_x()
             config["settings_y"] = settings_win.winfo_y()
             save_config(config)
+            
+            # Immediately apply new language to main UI
+            self.lang = lang_code
+            self.rebuild_context_menu()
+            self.update_appearance(self.current_state, getattr(self, '_last_detail_text', ''), force_silent=True)
             
             if self.sender:
                 self.sender.close()
@@ -731,18 +851,25 @@ class DesktopPetUI:
                 self.sender.send_state(self.current_state)
                 self._last_sent_state = self.current_state
                 
-            messagebox.showinfo("Saved", "Settings saved and applied successfully!", parent=settings_win)
-            # Fix macOS PRIMARY selection bug
+            messagebox.showinfo(self.t("dialog_saved"), self.t("msg_settings_saved"), parent=settings_win)
             self.root.focus_set()
             settings_win.destroy()
             self.settings_win = None
+            if sys.platform == "darwin":
+                self.root.after(100, lambda: self._mac_activate(source="settings_close"))
             
-        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
-        about_frame = ttk.Frame(padding_frame)
+        sep8 = ttk.Separator(scrollable_frame, orient='horizontal')
+        sep8.pack(fill='x', pady=10)
+        
+        # About
+        about_frame = ttk.Frame(scrollable_frame, style="Settings.TFrame")
         about_frame.pack(fill="x", pady=5)
-        ttk.Label(about_frame, text="About AgyPet", font=("Segoe UI", 10, "bold")).pack(anchor="center", pady=(0, 5))
-        ttk.Label(about_frame, text="Version: v0.1.2", font=("Segoe UI", 9)).pack(anchor="center")
-        ttk.Label(about_frame, text="Author: aning35", font=("Segoe UI", 9)).pack(anchor="center")
+        about_label = ttk.Label(about_frame, text="", font=("Segoe UI", 10, "bold"))
+        about_label.pack(anchor="center", pady=(0, 5))
+        version_label = ttk.Label(about_frame, text="", font=("Segoe UI", 9))
+        version_label.pack(anchor="center")
+        author_label = ttk.Label(about_frame, text="", font=("Segoe UI", 9))
+        author_label.pack(anchor="center")
         
         def open_github(event):
             import webbrowser
@@ -752,15 +879,93 @@ class DesktopPetUI:
         link.pack(anchor="center")
         link.bind("<Button-1>", open_github)
 
-        save_btn = tk.Button(padding_frame, text="Save & Apply", command=save_and_close, font=("Segoe UI", 11, "bold"), fg="#2E3440", bg="#8FBCBB", relief="raised", cursor="hand2")
-        save_btn.pack(pady=(10, 20), fill="x", ipady=4)
+        save_btn = tk.Button(save_btn_frame, text="", command=save_and_close, font=("Segoe UI", 11, "bold"), fg="#2E3440", bg="#8FBCBB", relief="raised", cursor="hand2")
+        save_btn.pack(fill="x", ipady=4)
 
-        # Let tkinter calculate required dimensions
+        # Re-apply text function
+        def refresh_settings_texts(temp_lang):
+            settings_win.title(t("set_title", temp_lang))
+            lang_label.config(text=t("set_lang", temp_lang))
+            conn_mode_label.config(text=t("set_conn_mode", temp_lang))
+            
+            r_none.config(text=t("set_mode_none", temp_lang))
+            r_serial.config(text=t("set_mode_serial", temp_lang))
+            r_ble.config(text=t("set_mode_ble", temp_lang))
+            
+            serial_label.config(text=t("set_serial_settings", temp_lang))
+            port_label.config(text=t("set_port", temp_lang))
+            baud_label.config(text=t("set_baud", temp_lang))
+            
+            ble_label.config(text=t("set_ble_settings", temp_lang))
+            mac_label.config(text=t("set_name_mac", temp_lang))
+            scan_btn.config(text=t("set_scan", temp_lang))
+            
+            dir_label.config(text=t("set_log_dir", temp_lang))
+            browse_btn.config(text=t("browse", temp_lang))
+            
+            vol_label.config(text=t("set_volume", temp_lang))
+            
+            voice_label.config(text=t("set_voice_profile", temp_lang))
+            
+            voice_profiles = {
+                "baba": t("voice_baba", temp_lang),
+                "mama": t("voice_mama", temp_lang),
+                "zhuren": t("voice_zhuren", temp_lang),
+                "laoban": t("voice_laoban", temp_lang),
+                "gege": t("voice_gege", temp_lang),
+                "baobao": t("voice_baobao", temp_lang),
+                "dongshizhang": t("voice_dongshizhang", temp_lang),
+                "guozhu": t("voice_guozhu", temp_lang),
+                "huangshang": t("voice_huangshang", temp_lang)
+            }
+            voice_reverse = {v: k for k, v in voice_profiles.items()}
+            settings_win.voice_reverse = voice_reverse
+            
+            current_profile = voice_var.get()
+            voice_cb.config(values=list(voice_profiles.values()))
+            voice_cb.set(voice_profiles.get(current_profile, voice_profiles["baba"]))
+            
+            hook_label.config(text=t("set_webhook", temp_lang))
+            water_label.config(text=t("set_water_reminder", temp_lang))
+            water_subtext_label.config(text=t("set_water_subtext", temp_lang))
+            
+            about_label.config(text=t("set_about", temp_lang))
+            version_label.config(text=t("set_version", temp_lang))
+            author_label.config(text=t("set_author", temp_lang))
+            save_btn.config(text=t("set_save", temp_lang))
+
+        # Initial text refresh
+        refresh_settings_texts(self.lang)
+        
+        # Listen for combobox change
+        def on_lang_changed(event):
+            temp_lang = "en" if lang_var.get() == "English" else "zh"
+            refresh_settings_texts(temp_lang)
+            
+        lang_cb.bind("<<ComboboxSelected>>", on_lang_changed)
+
+        # Mouse wheel binding to enable scrolling on labels/entries/sub-widgets
+        def _on_mousewheel(event):
+            if sys.platform == "darwin":
+                canvas.yview_scroll(-1 * int(event.delta), "units")
+            else:
+                canvas.yview_scroll(-1 * int(event.delta / 120), "units")
+                
+        def bind_mousewheel(widget):
+            widget.bind("<MouseWheel>", _on_mousewheel)
+            widget.bind("<Button-4>", lambda e: canvas.yview_scroll(-1, "units"))
+            widget.bind("<Button-5>", lambda e: canvas.yview_scroll(1, "units"))
+            for child in widget.winfo_children():
+                bind_mousewheel(child)
+
+        # Bind mousewheel to all elements recursively
+        bind_mousewheel(canvas)
+        bind_mousewheel(scrollable_frame)
+
         settings_win.update_idletasks()
         req_width = max(480, settings_win.winfo_reqwidth())
         req_height = settings_win.winfo_reqheight()
         
-        # Apply the exact calculated geometry
         if settings_x != -1 and settings_y != -1:
             settings_win.geometry(f"{req_width}x{req_height}+{settings_x}+{settings_y}")
         else:
@@ -1063,19 +1268,22 @@ class DesktopPetUI:
             else:
                 self.thinking_start_time = None
 
+        self._last_detail_text = detail
         # Text and Colors
         state_mapping = {
-            AntigravityState.IDLE: {"text": "IDLE", "color": "#A6DA95"},
-            AntigravityState.THINKING: {"text": "THINKING", "color": "#8AADF4"},
-            AntigravityState.WAITING_CONFIRM: {"text": "WAITING", "color": "#EED49F"},
-            AntigravityState.ERROR: {"text": "ERROR", "color": "#ED8796"}
+            AntigravityState.IDLE: {"text_key": "status_idle", "color": "#A6DA95"},
+            AntigravityState.THINKING: {"text_key": "status_thinking", "color": "#8AADF4"},
+            AntigravityState.WAITING_CONFIRM: {"text_key": "status_waiting", "color": "#EED49F"},
+            AntigravityState.ERROR: {"text_key": "status_error", "color": "#ED8796"}
         }
-        config = state_mapping.get(state, {"text": "UNKNOWN", "color": "#CAD3F5"})
+        state_config = state_mapping.get(state, {"text_key": "status_unknown", "color": "#CAD3F5"})
+        translated_status = self.t(state_config["text_key"])
+        self.canvas.itemconfig(self.status_item, text=translated_status, fill=state_config["color"])
         
-        self.canvas.itemconfig(self.status_item, text=config["text"], fill=config["color"])
-        
+        # translate detail if it matches a key, otherwise use as-is
+        translated_detail = self.translate_detail(detail)
         # truncate detail
-        short_detail = detail[:22] + "..." if len(detail) > 22 else detail
+        short_detail = translated_detail[:22] + "..." if len(translated_detail) > 22 else translated_detail
         self.canvas.itemconfig(self.detail_item, text=short_detail)
         
         # Uptime Tracker
@@ -1204,6 +1412,7 @@ class DesktopPetUI:
                 event_handler.set_file(log_file)
                 observer.schedule(event_handler, os.path.dirname(log_file), recursive=False)
                 observer.start()
+                self.state_queue.put((AntigravityState.IDLE, "Monitoring logs"))
             else:
                 self.state_queue.put((AntigravityState.ERROR, "No logs found"))
         except Exception as e:

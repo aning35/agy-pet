@@ -68,7 +68,9 @@ AgyPet features multiple built-in voice personalities (Master, Papa, Boss, Broth
 - 🖥️ **Cross-Platform System Tray**: Perfectly supports Windows and macOS. Utilizes a true multi-processing architecture to bypass macOS main-thread UI restrictions.
 - 🎆 **Smart Context Menu & System Tray**: Right-click the pet to trigger actions (like "Fireworks"), or use the system tray/menu bar icon to toggle visibility, manage settings, and securely run in the background.
 - 📌 **Edge Docking**: Drag the pet to any screen edge (left, right, or top) to transform it into a sleek, state-colored progress bar that stays out of your way. Fully supports Windows and macOS.
-- 📊 **Local Stats Dashboard**: Right-click and select "Show Dashboard" to view today's AI thinking time, error count, and session uptime — all computed locally, zero AI inference cost.
+- 📊 **Local Stats Dashboard**: Right-click and select "Show Dashboard" to view today's AI thinking time, error count, session uptime, and estimated Token usage (character count) — all computed locally, zero AI inference cost.
+- 💧 **Healthy Water Reminders**: Built-in voice reminders to drink water at standard daily times (9:00, 10:00, 11:00...) to keep you hydrated during long coding sessions.
+- 💾 **Smart Position Persistence**: AgyPet automatically remembers its last screen coordinates across restarts.
 - 🛡️ **Deep Error Detection**: Automatically catches fatal agent errors (HTTP 400, network timeouts, `invalid_request_error`) and instantly reflects them in the pet's ERROR state.
 - 🛜 **Hardware Connectivity**: Built-in support for BLE (Bluetooth Low Energy) MAC/Name scanning and legacy USB Serial (SPP).
 - 🎨 **Modern Aesthetics**: Frameless capsule design, Catppuccin color palette, and dynamic GIF engines running on a transparent canvas.

@@ -37,7 +37,7 @@ def main():
         from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("AgyPet v0.1.2", t("msg_already_running", lang))
+        messagebox.showinfo("AgyPet v0.1.3", t("msg_already_running", lang))
         return
 
     config = load_config()

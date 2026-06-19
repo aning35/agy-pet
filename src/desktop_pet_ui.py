@@ -636,7 +636,7 @@ class DesktopPetUI:
         water_frame.pack(fill="x")
         ttk.Label(water_frame, text="24-Hour times (e.g. 10:30, 15:00):").pack(side="left")
         
-        water_times_var = tk.StringVar(master=settings_win, value=config.get("water_times", "10:30, 15:00"))
+        water_times_var = tk.StringVar(master=settings_win, value=config.get("water_times", "9:00, 10:00, 11:00, 14:00, 15:00, 16:00, 17:00"))
         ttk.Entry(water_frame, textvariable=water_times_var).pack(side="left", fill="x", expand=True, padx=(5, 0))
         
         def save_and_close():

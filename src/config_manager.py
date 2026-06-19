@@ -25,7 +25,7 @@ DEFAULT_CONFIG = {
     "ble_name": "AgyPet",
     "brain_dir": get_default_brain_dir(),
     "voice_profile": "baba",
-    "water_times": "10:30, 15:00",
+    "water_times": "9:00, 10:00, 11:00, 14:00, 15:00, 16:00, 17:00",
     "settings_x": -1,
     "settings_y": -1
 }

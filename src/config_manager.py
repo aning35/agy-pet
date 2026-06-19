@@ -27,7 +27,9 @@ DEFAULT_CONFIG = {
     "voice_profile": "baba",
     "water_times": "9:00, 10:00, 11:00, 14:00, 15:00, 16:00, 17:00",
     "settings_x": -1,
-    "settings_y": -1
+    "settings_y": -1,
+    "pet_x": -1,
+    "pet_y": -1
 }
 
 def load_config():

@@ -78,10 +78,13 @@ def show_fireworks_mac(gif_path):
         win.setContentView_(image_view)
         win.makeKeyAndOrderFront_(None)
         
-        # Close after 4 seconds
-        app.performSelector_withObject_afterDelay_(
-            objc.selector(app.closeApp_, signature=b'v@:@'), None, 4.0
-        )
+        # Hard close after 4 seconds using threading to prevent PyObjC runloop blocking
+        import threading
+        def hard_exit():
+            import time
+            time.sleep(4.0)
+            os._exit(0)
+        threading.Thread(target=hard_exit, daemon=True).start()
         
         app.run()
     except Exception as e:

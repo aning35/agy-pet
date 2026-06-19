@@ -93,8 +93,19 @@ class DesktopPetUI:
         self.width = 250
         self.height = 64
         screen_width = self.root.winfo_screenwidth()
-        x_pos = screen_width - self.width - 30
-        y_pos = 60
+        screen_height = self.root.winfo_screenheight()
+        
+        config = load_config()
+        pet_x = config.get("pet_x", -1)
+        pet_y = config.get("pet_y", -1)
+        
+        if pet_x != -1 and pet_y != -1:
+            x_pos = min(max(pet_x, 0), screen_width - 30)
+            y_pos = min(max(pet_y, 0), screen_height - 30)
+        else:
+            x_pos = screen_width - self.width - 30
+            y_pos = 60
+            
         self.root.geometry(f"{self.width}x{self.height}+{x_pos}+{y_pos}")
         
         self.current_win_x = x_pos
@@ -178,8 +189,8 @@ class DesktopPetUI:
             widget.bind("<ButtonPress-3>", self.show_context_menu)
             widget.bind("<Control-Button-1>", self.show_context_menu)
             
-            # Re-assert topmost when mouse hovers or clicks
-            widget.bind("<Enter>", lambda e: self.root.attributes("-topmost", True), add="+")
+            # Re-assert topmost and focus when mouse hovers or clicks
+            widget.bind("<Enter>", self._on_mouse_enter, add="+")
             widget.bind("<ButtonPress-1>", lambda e: self.root.attributes("-topmost", True), add="+")
 
         
@@ -220,6 +231,32 @@ class DesktopPetUI:
         self.last_water_reminder = time.time()
         self._last_minute_checked = -1
         self.check_water_reminder()
+        
+        # macOS fix: overrideredirect windows lose focus easily, breaking right-click.
+        # Use NSApplication to properly activate the process, and maintain focus periodically.
+        if sys.platform == "darwin":
+            self.root.after(200, lambda: self._mac_activate(source="startup"))
+    
+    def _mac_activate(self, source="unknown"):
+        """Activate this process on macOS so overrideredirect windows receive mouse events."""
+        try:
+            from AppKit import NSApplication
+            app = NSApplication.sharedApplication()
+            # Python scripts default to 'Prohibited' activation policy which blocks activation.
+            # Set to 'Accessory' (1) = can be activated, no Dock icon.
+            app.setActivationPolicy_(1)  # NSApplicationActivationPolicyAccessory
+            app.activateIgnoringOtherApps_(True)
+        except Exception:
+            try:
+                self.root.focus_force()
+            except Exception:
+                pass
+
+    def _on_mouse_enter(self, event):
+        """Re-assert topmost and activate on mouse enter so right-click always works."""
+        self.root.attributes("-topmost", True)
+        if sys.platform == "darwin":
+            self._mac_activate(source="mouse_enter")
 
     def check_water_reminder(self):
         try:
@@ -298,6 +335,8 @@ class DesktopPetUI:
         if self.dashboard_window and self.dashboard_window.winfo_exists():
             self.dashboard_window.destroy()
             self.dashboard_window = None
+            if sys.platform == "darwin":
+                self.root.after(100, lambda: self._mac_activate(source="dashboard_close"))
             return
             
         x = event.x_root if event else self.root.winfo_pointerx()
@@ -305,7 +344,7 @@ class DesktopPetUI:
         
         self.dashboard_window = tk.Toplevel(self.root)
         self.dashboard_window.title("AgyPet Stats")
-        self.dashboard_window.geometry(f"200x150+{x+10}+{y+10}")
+        self.dashboard_window.geometry(f"200x180+{x+10}+{y+10}")
         self.dashboard_window.configure(bg="#303446")
         self.dashboard_window.overrideredirect(True)
         self.dashboard_window.attributes("-topmost", True)
@@ -318,6 +357,8 @@ class DesktopPetUI:
         ttk.Label(self.dashboard_window, text=f"User Requests: {stats['user_requests']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
         ttk.Label(self.dashboard_window, text=f"AI Actions: {stats['model_steps']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
         ttk.Label(self.dashboard_window, text=f"Tools Used: {stats['tool_calls']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=f"User Chars: {stats.get('user_chars', 0)}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=f"AI Chars: {stats.get('ai_chars', 0)}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
         ttk.Label(self.dashboard_window, text=f"Errors: {stats['errors']}", background="#303446", foreground="#ED8796").pack(anchor="w", padx=15)
         
         # Close on click
@@ -367,6 +408,8 @@ class DesktopPetUI:
                         else:
                             self.root.deiconify()
                             self.is_visible = True
+                            if sys.platform == "darwin":
+                                self.root.after(200, lambda: self._mac_activate(source="tray_show"))
                             
                             # Recovery: If window is offscreen or lost due to drag bug, reset to center
                             screen_w = self.root.winfo_screenwidth()
@@ -436,10 +479,19 @@ class DesktopPetUI:
             
         self.last_menu_time = time.time()
         
+        # macOS: MUST activate BEFORE tk_popup, otherwise menu is invisible
+        if sys.platform == "darwin":
+            self._mac_activate(source="before_menu_popup")
+        
         try:
             self.menu.tk_popup(event.x_root, event.y_root)
+        except Exception:
+            pass
         finally:
-            self.menu.grab_release()
+            try:
+                self.menu.grab_release()
+            except Exception:
+                pass
             
         return "break"
 
@@ -476,6 +528,8 @@ class DesktopPetUI:
             self.root.focus_set()
             settings_win.destroy()
             self.settings_win = None
+            if sys.platform == "darwin":
+                self.root.after(100, lambda: self._mac_activate(source="settings_close"))
             
         settings_win.protocol("WM_DELETE_WINDOW", on_close)
         
@@ -730,6 +784,7 @@ class DesktopPetUI:
             
         # Prevent immediate re-docking if we just undocked
         if time.time() - getattr(self, 'last_undock_time', 0) < 0.5:
+            self.save_pet_position()
             return
             
         # Check for docking using internal tracked coordinates to bypass Tkinter async geometry lag
@@ -744,6 +799,17 @@ class DesktopPetUI:
             self.dock_to_edge("right")
         elif win_y <= self.dock_threshold:
             self.dock_to_edge("top")
+        else:
+            self.save_pet_position()
+
+    def save_pet_position(self):
+        try:
+            config = load_config()
+            config["pet_x"] = getattr(self, 'current_win_x', self.root.winfo_x())
+            config["pet_y"] = getattr(self, 'current_win_y', self.root.winfo_y())
+            save_config(config)
+        except Exception as e:
+            print(f"Error saving pet position: {e}")
 
     def do_move(self, event):
         if self.is_docked:

@@ -161,7 +161,9 @@ def get_today_statistics(brain_dir):
         "user_requests": 0,
         "model_steps": 0,
         "tool_calls": 0,
-        "errors": 0
+        "errors": 0,
+        "user_chars": 0,
+        "ai_chars": 0
     }
     
     try:
@@ -198,9 +200,12 @@ def get_today_statistics(brain_dir):
                         
                         if source == "USER_EXPLICIT" and msg_type == "USER_INPUT":
                             stats["user_requests"] += 1
+                            stats["user_chars"] += len(str(data.get("content", "")))
                         elif source == "MODEL" and msg_type == "PLANNER_RESPONSE":
                             stats["model_steps"] += 1
                             stats["tool_calls"] += len(tool_calls)
+                            stats["ai_chars"] += len(str(data.get("content", "")))
+                            stats["ai_chars"] += len(str(data.get("thinking", "")))
                             
                         if status == "ERROR" or msg_type == "ERROR" or msg_type == "SYSTEM_ERROR":
                             stats["errors"] += 1

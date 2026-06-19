@@ -155,3 +155,60 @@ def get_latest_conversation_log(brain_dir):
     except Exception as e:
         print(f"[-] Error getting latest conversation log: {e}")
         return None
+
+def get_today_statistics(brain_dir):
+    stats = {
+        "user_requests": 0,
+        "model_steps": 0,
+        "tool_calls": 0,
+        "errors": 0
+    }
+    
+    try:
+        if not brain_dir or not os.path.exists(brain_dir):
+            return stats
+            
+        import datetime
+        today = datetime.date.today()
+        
+        for d in os.listdir(brain_dir):
+            full_path = os.path.join(brain_dir, d)
+            if not os.path.isdir(full_path):
+                continue
+                
+            log_file = os.path.join(full_path, ".system_generated", "logs", "transcript.jsonl")
+            if not os.path.exists(log_file):
+                continue
+                
+            # Check if the file was modified today
+            mtime = os.path.getmtime(log_file)
+            file_date = datetime.date.fromtimestamp(mtime)
+            
+            if file_date != today:
+                continue
+                
+            with open(log_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        data = json.loads(line)
+                        source = data.get("source", "")
+                        msg_type = data.get("type", "")
+                        status = data.get("status", "")
+                        tool_calls = data.get("tool_calls", [])
+                        
+                        if source == "USER_EXPLICIT" and msg_type == "USER_INPUT":
+                            stats["user_requests"] += 1
+                        elif source == "MODEL" and msg_type == "PLANNER_RESPONSE":
+                            stats["model_steps"] += 1
+                            stats["tool_calls"] += len(tool_calls)
+                            
+                        if status == "ERROR" or msg_type == "ERROR" or msg_type == "SYSTEM_ERROR":
+                            stats["errors"] += 1
+                    except Exception:
+                        pass
+                        
+        return stats
+    except Exception as e:
+        print(f"[-] Error parsing statistics: {e}")
+        return stats
+

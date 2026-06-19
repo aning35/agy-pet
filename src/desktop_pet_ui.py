@@ -13,7 +13,7 @@ from PIL import Image, ImageTk
 from watchdog.observers import Observer
 from bleak import BleakScanner
 
-from state_parser import LogHandler, AntigravityState, get_latest_conversation_log
+from state_parser import LogHandler, AntigravityState, get_latest_conversation_log, get_today_statistics
 from config_manager import load_config, save_config
 
 def get_base_dir():
@@ -132,6 +132,13 @@ class DesktopPetUI:
         self.bg_color = "#24273A" # Base
         self.fg_color = "#CAD3F5" # Text
         
+        # Initialize Ttk style once to prevent macOS blank screen bug
+        self.style = ttk.Style()
+        if "clam" in self.style.theme_names():
+            self.style.theme_use('clam')
+            
+        self.settings_win = None
+        
         # Main Canvas
         self.canvas = tk.Canvas(self.root, bg=self.transparent_color, highlightthickness=0, bd=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
@@ -188,8 +195,10 @@ class DesktopPetUI:
         test_hw_menu.add_command(label="THINKING (0x02)", command=lambda: self.on_state_change(AntigravityState.THINKING, "Test Hardware"))
         test_hw_menu.add_command(label="WAITING (0x03)", command=lambda: self.on_state_change(AntigravityState.WAITING_CONFIRM, "Test Hardware"))
         test_hw_menu.add_command(label="ERROR (0x04)", command=lambda: self.on_state_change(AntigravityState.ERROR, "Test Hardware"))
+        test_hw_menu.add_separator()
+        test_hw_menu.add_command(label="DRINK WATER (Audio)", command=self.test_drink_water)
         
-        self.menu.add_cascade(label="🛠️ Test Hardware States", menu=test_hw_menu)
+        self.menu.add_cascade(label="🛠️ Test & Debug", menu=test_hw_menu)
         self.menu.add_command(label="🎆 Test Fireworks UI", command=self.show_fireworks)
         self.menu.add_separator()
         self.menu.add_command(label="❌ Exit", command=lambda: self.root.destroy())
@@ -206,6 +215,56 @@ class DesktopPetUI:
         
         if self.sender:
             self.sender.set_status_callback(self.on_connection_status)
+
+        # Water reminder setup
+        self.last_water_reminder = time.time()
+        self._last_minute_checked = -1
+        self.check_water_reminder()
+
+    def check_water_reminder(self):
+        try:
+            config = load_config()
+            times_str = config.get("water_times", "")
+            
+            now = time.time()
+            import datetime
+            dt_now = datetime.datetime.now()
+            current_minute = dt_now.hour * 60 + dt_now.minute
+            
+            should_remind = False
+            
+            # Check fixed times (trigger once per minute)
+            if self._last_minute_checked != current_minute:
+                self._last_minute_checked = current_minute
+                
+                if times_str:
+                    time_parts = [t.strip() for t in times_str.split(',') if t.strip()]
+                    for t in time_parts:
+                        try:
+                            h, m = map(int, t.split(':'))
+                            if dt_now.hour == h and dt_now.minute == m:
+                                should_remind = True
+                                break
+                        except Exception:
+                            pass
+                
+            if should_remind:
+                self.last_water_reminder = now
+                self.test_drink_water()
+        except Exception as e:
+            print(f"Error checking water reminder: {e}")
+            
+        # Check every 10 seconds
+        self.root.after(10000, self.check_water_reminder)
+
+    def test_drink_water(self):
+        try:
+            config = load_config()
+            voice_profile = config.get("voice_profile", "baba")
+            base_dir = get_base_dir()
+            self.play_sound(os.path.join(base_dir, "assets", "sounds", voice_profile, "drink.mp3"))
+        except Exception as e:
+            print(f"Error playing test drink water sound: {e}")
 
     def load_stats(self):
         if os.path.exists(self.stats_file):
@@ -246,21 +305,20 @@ class DesktopPetUI:
         
         self.dashboard_window = tk.Toplevel(self.root)
         self.dashboard_window.title("AgyPet Stats")
-        self.dashboard_window.geometry(f"200x120+{x+10}+{y+10}")
+        self.dashboard_window.geometry(f"200x150+{x+10}+{y+10}")
         self.dashboard_window.configure(bg="#303446")
         self.dashboard_window.overrideredirect(True)
         self.dashboard_window.attributes("-topmost", True)
         
-        ttk.Label(self.dashboard_window, text="Today's Dashboard", font=("Segoe UI", 10, "bold"), background="#303446", foreground="#A6DA95").pack(pady=5)
+        ttk.Label(self.dashboard_window, text="Today's Workload", font=("Segoe UI", 10, "bold"), background="#303446", foreground="#A6DA95").pack(pady=5)
         
-        think_mins = int(self.stats['thinking_time'] // 60)
-        think_secs = int(self.stats['thinking_time'] % 60)
-        ttk.Label(self.dashboard_window, text=f"Brainpower: {think_mins}m {think_secs}s", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        config = load_config()
+        stats = get_today_statistics(config.get("brain_dir", ""))
         
-        ttk.Label(self.dashboard_window, text=f"Errors Fixed: {self.stats['errors']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
-        
-        up_mins = int(self.stats['uptime'] // 60)
-        ttk.Label(self.dashboard_window, text=f"Uptime: {up_mins}m", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=f"User Requests: {stats['user_requests']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=f"AI Actions: {stats['model_steps']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=f"Tools Used: {stats['tool_calls']}", background="#303446", foreground="#CAD3F5").pack(anchor="w", padx=15)
+        ttk.Label(self.dashboard_window, text=f"Errors: {stats['errors']}", background="#303446", foreground="#ED8796").pack(anchor="w", padx=15)
         
         # Close on click
         self.dashboard_window.bind("<Button-1>", lambda e: self.toggle_dashboard(None))
@@ -386,7 +444,13 @@ class DesktopPetUI:
         return "break"
 
     def open_settings(self):
+        if self.settings_win and self.settings_win.winfo_exists():
+            self.settings_win.lift()
+            self.settings_win.focus_force()
+            return
+            
         settings_win = tk.Toplevel(self.root)
+        self.settings_win = settings_win
         settings_win.title("AgyPet Settings")
         
         config = load_config()
@@ -398,19 +462,22 @@ class DesktopPetUI:
         # We will auto-size the window height after all widgets are added
         settings_win.minsize(480, 500)
             
-        settings_win.transient(self.root)
-        settings_win.grab_set()
+        if sys.platform != "darwin":
+            settings_win.transient(self.root)
+            settings_win.grab_set()
+            
         settings_win.configure(bg="#ECEFF4")
         
         def on_close():
             config["settings_x"] = settings_win.winfo_x()
             config["settings_y"] = settings_win.winfo_y()
             save_config(config)
+            # Fix macOS PRIMARY selection bug by removing focus from entries before destroy
+            self.root.focus_set()
             settings_win.destroy()
+            self.settings_win = None
             
         settings_win.protocol("WM_DELETE_WINDOW", on_close)
-        style = ttk.Style()
-        style.theme_use('clam')
         
         padding_frame = ttk.Frame(settings_win, padding="20")
         padding_frame.pack(fill=tk.BOTH, expand=True)
@@ -560,6 +627,17 @@ class DesktopPetUI:
         
         hook_var = tk.StringVar(master=settings_win, value=config.get("http_hook", ""))
         ttk.Entry(hook_frame, textvariable=hook_var).pack(side="left", fill="x", expand=True)
+
+        ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
+        
+        ttk.Label(padding_frame, text="Water Reminder Times (喝水提醒时间):", font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(0, 5))
+        
+        water_frame = ttk.Frame(padding_frame)
+        water_frame.pack(fill="x")
+        ttk.Label(water_frame, text="24-Hour times (e.g. 10:30, 15:00):").pack(side="left")
+        
+        water_times_var = tk.StringVar(master=settings_win, value=config.get("water_times", "10:30, 15:00"))
+        ttk.Entry(water_frame, textvariable=water_times_var).pack(side="left", fill="x", expand=True, padx=(5, 0))
         
         def save_and_close():
             config["mode"] = mode_var.get()
@@ -573,6 +651,8 @@ class DesktopPetUI:
             config["volume"] = vol_var.get()
             config["voice_profile"] = voice_var.get()
             config["http_hook"] = hook_var.get().strip()
+            config["water_times"] = water_times_var.get().strip()
+
             config["settings_x"] = settings_win.winfo_x()
             config["settings_y"] = settings_win.winfo_y()
             save_config(config)
@@ -598,7 +678,10 @@ class DesktopPetUI:
                 self._last_sent_state = self.current_state
                 
             messagebox.showinfo("Saved", "Settings saved and applied successfully!", parent=settings_win)
+            # Fix macOS PRIMARY selection bug
+            self.root.focus_set()
             settings_win.destroy()
+            self.settings_win = None
             
         ttk.Separator(padding_frame, orient='horizontal').pack(fill='x', pady=10)
         about_frame = ttk.Frame(padding_frame)

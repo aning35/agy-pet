@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
     "pet_x": -1,
     "pet_y": -1,
     "language": "en",
-    "auto_start": True
+    "auto_start": False
 }
 
 def load_config():

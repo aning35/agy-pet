@@ -632,7 +632,7 @@ class DesktopPetUI:
         lang_cb.pack(anchor="w", fill="x", pady=(0, 10))
         
         # Auto Start
-        auto_start_var = tk.BooleanVar(master=settings_win, value=config.get("auto_start", True))
+        auto_start_var = tk.BooleanVar(master=settings_win, value=config.get("auto_start", False))
         auto_start_cb = ttk.Checkbutton(scrollable_frame, text="", variable=auto_start_var)
         auto_start_cb.pack(anchor="w", pady=(0, 10))
         

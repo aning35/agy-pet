@@ -41,12 +41,6 @@ def main():
         return
 
     config = load_config()
-    
-    try:
-        from autostart import set_autostart
-        set_autostart(config.get("auto_start", True))
-    except Exception as e:
-        print(f"Error syncing autostart on startup: {e}")
 
     sender = None
     

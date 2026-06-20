@@ -69,8 +69,9 @@ TRANSLATIONS = {
         "set_water_reminder": "Water Reminder Times:",
         "set_water_subtext": "24-Hour times (e.g. 10:30, 15:00):",
         "set_about": "About AgyPet",
-        "set_version": "Version: v0.1.3",
+        "set_version": "Version: v0.1.4",
         "set_author": "Author: aning35",
+        "set_auto_start": "Auto Start on Boot",
         "set_save": "Save & Apply",
         
         # Voice profiles
@@ -159,8 +160,9 @@ TRANSLATIONS = {
         "set_water_reminder": "喝水提醒时间：",
         "set_water_subtext": "24小时制时间 (例如 10:30, 15:00)：",
         "set_about": "关于 AgyPet",
-        "set_version": "版本: v0.1.3",
+        "set_version": "版本: v0.1.4",
         "set_author": "作者: aning35",
+        "set_auto_start": "开机自动启动",
         "set_save": "保存并应用",
         
         # Voice profiles

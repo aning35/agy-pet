@@ -631,6 +631,11 @@ class DesktopPetUI:
         lang_cb = ttk.Combobox(scrollable_frame, textvariable=lang_var, values=["English", "中文"], state="readonly")
         lang_cb.pack(anchor="w", fill="x", pady=(0, 10))
         
+        # Auto Start
+        auto_start_var = tk.BooleanVar(master=settings_win, value=config.get("auto_start", True))
+        auto_start_cb = ttk.Checkbutton(scrollable_frame, text="", variable=auto_start_var)
+        auto_start_cb.pack(anchor="w", pady=(0, 10))
+        
         # Connection Mode
         conn_mode_label = ttk.Label(scrollable_frame, text="", font=("Segoe UI", 10, "bold"))
         conn_mode_label.pack(anchor="w", pady=(0, 5))
@@ -809,6 +814,7 @@ class DesktopPetUI:
         def save_and_close():
             lang_code = "en" if lang_var.get() == "English" else "zh"
             config["language"] = lang_code
+            config["auto_start"] = auto_start_var.get()
             config["mode"] = mode_var.get()
             config["serial_port"] = port_var.get()
             try:
@@ -825,6 +831,12 @@ class DesktopPetUI:
             config["settings_x"] = settings_win.winfo_x()
             config["settings_y"] = settings_win.winfo_y()
             save_config(config)
+            
+            try:
+                from autostart import set_autostart
+                set_autostart(config["auto_start"])
+            except Exception as e:
+                print(f"Error updating autostart: {e}")
             
             # Immediately apply new language to main UI
             self.lang = lang_code
@@ -886,6 +898,7 @@ class DesktopPetUI:
         def refresh_settings_texts(temp_lang):
             settings_win.title(t("set_title", temp_lang))
             lang_label.config(text=t("set_lang", temp_lang))
+            auto_start_cb.config(text=t("set_auto_start", temp_lang))
             conn_mode_label.config(text=t("set_conn_mode", temp_lang))
             
             r_none.config(text=t("set_mode_none", temp_lang))

@@ -37,10 +37,17 @@ def main():
         from tkinter import messagebox
         root = tk.Tk()
         root.withdraw()
-        messagebox.showinfo("AgyPet v0.1.3", t("msg_already_running", lang))
+        messagebox.showinfo("AgyPet v0.1.4", t("msg_already_running", lang))
         return
 
     config = load_config()
+    
+    try:
+        from autostart import set_autostart
+        set_autostart(config.get("auto_start", True))
+    except Exception as e:
+        print(f"Error syncing autostart on startup: {e}")
+
     sender = None
     
     if config.get("mode") == "serial":
